@@ -43,7 +43,7 @@ jobs:
           BLOCKED_EXTENSIONS="(exe|zip|tar.gz|bz2)"  # Add any forbidden extensions
           BAD_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.event.pull_request.base.ref }} | grep -E "\.($BLOCKED_EXTENSIONS)$" || true)
           if [[ ! -z "$BAD_FILES" ]]; then
-            echo "❌ The following files have restricted extensions and need to be removed from the PR:"
+            echo "❌ The following files have restricted extensions:"
             echo "$BAD_FILES"
             exit 1
           fi
