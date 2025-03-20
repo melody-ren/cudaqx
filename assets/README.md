@@ -63,3 +63,5 @@ Use the following steps to remove a file from LFS:
 
     `git rm --cached assets/largefile.zip`, then commit and push.
 
+    Once the file is removed, remember to delete the tracking information in `.gitattributes`.
+
