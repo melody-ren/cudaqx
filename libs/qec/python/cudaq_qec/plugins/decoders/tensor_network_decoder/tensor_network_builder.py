@@ -74,35 +74,28 @@ def tensor_network_from_parity_check(
     rows, cols = np.nonzero(parity_check_matrix)
 
     # Add one Hadamard tensor for each non-zero element in the parity check matrix
-    return TensorNetwork(
-        [
-            Tensor(
-                data=hadamard,
-                inds=(row_inds[j], col_inds[i]),
-                tags=oset([tags[i]] if tags is not None else []),
-            )
-            for i, j in zip(rows, cols)
-        ]
-    )
+    return TensorNetwork([
+        Tensor(
+            data=hadamard,
+            inds=(row_inds[j], col_inds[i]),
+            tags=oset([tags[i]] if tags is not None else []),
+        ) for i, j in zip(rows, cols)
+    ])
 
 
-def tensor_network_from_single_syndrome(
-    syndrome: list[bool], check_inds: list[str]
-) -> None:
+def tensor_network_from_single_syndrome(syndrome: list[bool],
+                                        check_inds: list[str]) -> None:
     """Initialize the syndrome tensor network."""
     minus = np.array([1.0, -1.0])
     plus = np.array([1.0, 1.0])
 
-    return TensorNetwork(
-        [
-            Tensor(
-                data=minus if bool(syndrome[i]) else plus,
-                inds=(check_inds[i],),
-                tags=oset([f"SYN_{i}", "SYNDROME"]),
-            )
-            for i in range(len(check_inds))
-        ]
-    )
+    return TensorNetwork([
+        Tensor(
+            data=minus if bool(syndrome[i]) else plus,
+            inds=(check_inds[i],),
+            tags=oset([f"SYN_{i}", "SYNDROME"]),
+        ) for i in range(len(check_inds))
+    ])
 
 
 def prepare_syndrome_data_batch(syndrome_data: np.ndarray) -> np.ndarray:
@@ -166,16 +159,13 @@ def tensor_network_from_syndrome_batch(
 
     syndrome_arrays = prepare_syndrome_data_batch(detection_events)
 
-    return TensorNetwork(
-        [
-            Tensor(
-                data=syndrome_arrays[i],
-                inds=(batch_index, syndrome_inds[i]),
-                tags=oset((tags[i], "SYNDROME")),
-            )
-            for i in range(syndrome_length)
-        ]
-    )
+    return TensorNetwork([
+        Tensor(
+            data=syndrome_arrays[i],
+            inds=(batch_index, syndrome_inds[i]),
+            tags=oset((tags[i], "SYNDROME")),
+        ) for i in range(syndrome_length)
+    ])
 
 
 def tensor_network_from_logical_observable(
@@ -240,11 +230,12 @@ def set_backend(contractor_name, device) -> None:
         import torch
 
         assert torch.cuda.is_available(), "Torch CUDA is not available."
-        assert device in [f"cuda:{i}" for i in range(torch.cuda.device_count())], (
-            f"Device {device} cannot be used with cuTensornet."
+        assert device in [
+            f"cuda:{i}" for i in range(torch.cuda.device_count())
+        ], (f"Device {device} cannot be used with cuTensornet."
             f"Please use one of the following devices: "
             f"Available devices: {[f'cuda:{i}' for i in range(torch.cuda.device_count())]}"
-        )
+           )
         return "torch"
     # CPU contractor + various backends
     else:
@@ -258,6 +249,7 @@ def _adjust_default_path_value(val, is_cutensornet):
         return None if val == "auto" else val
     else:
         return "auto" if val is None else val
+
 
 @qec.decoder("tensor_network_decoder")
 class TensorNetworkDecoder:
@@ -394,7 +386,6 @@ class TensorNetworkDecoder:
 
         qec.Decoder.__init__(self, H)
 
-
         num_checks, num_errs = H.shape
         if check_inds is None:
             self.check_inds = [f"s_{j}" for j in range(num_checks)]
@@ -427,22 +418,19 @@ class TensorNetworkDecoder:
         self.logical_obs_inds = [f"obs_{l}" for l in self.logical_inds]
         # Add a Hadamard tensor for each logical observable for its outer leg
         self.logicals_tn |= tensor_network_from_logical_observable(
-            self.logicals, self.logical_inds, self.logical_obs_inds, self.logicals_tags
-        )
+            self.logicals, self.logical_inds, self.logical_obs_inds,
+            self.logicals_tags)
 
         self.syndrome_tn = tensor_network_from_single_syndrome(
-            [True] * len(self.check_inds), self.check_inds
-        )
+            [True] * len(self.check_inds), self.check_inds)
 
         # Construct the tensor network of code + logicals + syndromes
         # The noise model is added later
         self.full_tn = self.code_tn | self.logicals_tn | self.syndrome_tn
 
         if contractor_name not in CONTRACTORS:
-            raise ValueError(
-                f"Contractor {contractor_name} not found. "
-                f"Available contractors: {CONTRACTORS.keys()}"
-            )
+            raise ValueError(f"Contractor {contractor_name} not found. "
+                             f"Available contractors: {CONTRACTORS.keys()}")
 
         # Default values for the path finders
         self.path_single = None if contractor_name == "cutensornet" else "auto"
@@ -456,8 +444,7 @@ class TensorNetworkDecoder:
             old_inds = noise_model._outer_inds
             assert len(old_inds) == len(self.error_inds), (
                 f"Noise model has {len(old_inds)} open indices, "
-                f"but expected {len(self.error_inds)} for the error indices."
-            )
+                f"but expected {len(self.error_inds)} for the error indices.")
             # Reindex the noise model to match the error indices
             ind_map = {oi: ni for oi, ni in zip(old_inds, self.error_inds)}
             noise_model.reindex(ind_map, inplace=True)
@@ -466,14 +453,14 @@ class TensorNetworkDecoder:
             noise_model = factorized_noise_model(self.error_inds, noise_model)
         self.init_noise_model(noise_model, contract=contract_noise_model)
 
-    def init_noise_model(
-        self, noise_model: TensorNetwork, contract: bool = False
-    ) -> None:
+    def init_noise_model(self,
+                         noise_model: TensorNetwork,
+                         contract: bool = False) -> None:
         self.noise_model = noise_model
-        set_tensor_type(self.noise_model, self._backend, self._dtype, self._device)
-        self.full_tn = (
-            self.code_tn | self.logicals_tn | self.syndrome_tn | self.noise_model
-        )
+        set_tensor_type(self.noise_model, self._backend, self._dtype,
+                        self._device)
+        self.full_tn = (self.code_tn | self.logicals_tn | self.syndrome_tn |
+                        self.noise_model)
 
         if contract:
             for ie in self.error_inds:
@@ -492,16 +479,16 @@ class TensorNetworkDecoder:
         from .noise_models import factorized_noise_model
         from .stim_interface import detector_error_model_to_check_matrices
 
-
-        matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
+        matrices = detector_error_model_to_check_matrices(
+            stim_detector_error_model)
         H = matrices.check_matrix.todense()
         num_errs = matrices.check_matrix.shape[1]
         if "error_inds" not in kwargs:
             error_inds = [f"e_{j}" for j in range(num_errs)]
         else:
             error_inds = kwargs["error_inds"]
-        noise_model = factorized_noise_model(error_inds, matrices.priors)     
-        
+        noise_model = factorized_noise_model(error_inds, matrices.priors)
+
         obj = cls(
             H=H,
             logicals=matrices.observables_matrix.todense(),
@@ -537,9 +524,8 @@ class TensorNetworkDecoder:
         plus = do("array", (1.0, 1.0), **array_args)
 
         for ind in range(len(self.check_inds)):
-            t = self.syndrome_tn.tensors[
-                next(iter(self.syndrome_tn.tag_map[f"SYN_{ind}"]))
-            ]
+            t = self.syndrome_tn.tensors[next(
+                iter(self.syndrome_tn.tag_map[f"SYN_{ind}"]))]
             # if s is False, the tensor is the plus state (1, 1): |+> = Hadamard @ |0>
             # If s is True, the tensor is the minus state (1, -1): |-> = Hadamard @ |1>
             if bool(values[ind]) and t.data[1] != -1:
@@ -547,16 +533,15 @@ class TensorNetworkDecoder:
             elif not bool(values[ind]) and t.data[1] != 1:
                 t.modify(data=plus)
 
-    def set_contractor(
-        self, contractor: str, dtype: str = None, device: str = None
-    ) -> None:
+    def set_contractor(self,
+                       contractor: str,
+                       dtype: str = None,
+                       device: str = None) -> None:
         """Set the contractor for the tensor network."""
 
         if contractor not in CONTRACTORS:
-            raise ValueError(
-                f"Contractor {contractor} not found. "
-                f"Available contractors: {CONTRACTORS.keys()}"
-            )
+            raise ValueError(f"Contractor {contractor} not found. "
+                             f"Available contractors: {CONTRACTORS.keys()}")
 
         # Reset only if specified
         if dtype is not None:
@@ -582,8 +567,10 @@ class TensorNetworkDecoder:
         self._backend = set_backend(contractor, self._device)
         set_tensor_type(self.full_tn, self._backend, self._dtype, self._device)
 
-        self.path_batch = _adjust_default_path_value(self.path_batch, is_cutensornet)
-        self.path_single = _adjust_default_path_value(self.path_single, is_cutensornet)
+        self.path_batch = _adjust_default_path_value(self.path_batch,
+                                                     is_cutensornet)
+        self.path_single = _adjust_default_path_value(self.path_single,
+                                                      is_cutensornet)
 
     def decode(
         self,
@@ -620,8 +607,8 @@ class TensorNetworkDecoder:
                 "This `TensorNetworkDecoder` contains more than one logical observable."
                 "Please specify which one to use by setting the `logical_observable` argument"
                 "to `TensorNetwork.decode(syndrome, logical_observable=...)."
-                "The available logical observables are: " + str(self.logical_obs_inds)
-            )
+                "The available logical observables are: " +
+                str(self.logical_obs_inds))
         elif len(self.logical_obs_inds) == 1:
             logical_observable = self.logical_obs_inds[0]
 
@@ -634,7 +621,10 @@ class TensorNetworkDecoder:
 
         res = qec.DecoderResult()
         res.converged = True
-        res.result = [float(contraction_value[1] / (contraction_value[1] + contraction_value[0]))]
+        res.result = [
+            float(contraction_value[1] /
+                  (contraction_value[1] + contraction_value[0]))
+        ]
         return res
 
         # if return_probability:
@@ -684,19 +674,18 @@ class TensorNetworkDecoder:
                 "This tensor network contains more than one logical observable."
                 "Please specify which one to use by setting the `logical_observable` argument"
                 "to TensorNetwork.decode(syndrome, logical_observable=...)."
-                "The available logical observables are: " + str(self.logical_obs_inds)
-            )
+                "The available logical observables are: " +
+                str(self.logical_obs_inds))
         elif len(self.logical_obs_inds) == 1:
             logical_observable = self.logical_obs_inds[0]
 
         # Remove the syndrome tensors from the full tensor network
         tn = TensorNetwork(
-            [t for t in self.full_tn.tensors if "SYNDROME" not in t.tags]
-        )
+            [t for t in self.full_tn.tensors if "SYNDROME" not in t.tags])
 
-        tn |= tensor_network_from_syndrome_batch(
-            syndrome_batch, self.check_inds, batch_index="batch_index"
-        )
+        tn |= tensor_network_from_syndrome_batch(syndrome_batch,
+                                                 self.check_inds,
+                                                 batch_index="batch_index")
         set_tensor_type(tn, self._backend, self._dtype, self._device)
 
         contraction_value = CONTRACTORS[self._contractor_name](
@@ -710,8 +699,11 @@ class TensorNetworkDecoder:
         for r in range(syndrome_batch.shape[0]):
             res.append(qec.DecoderResult())
             res[r].converged = True
-            res[r].result = [float(contraction_value[r, 1] / (contraction_value[r, 1] + contraction_value[r, 0]))] 
-        
+            res[r].result = [
+                float(contraction_value[r, 1] /
+                      (contraction_value[r, 1] + contraction_value[r, 0]))
+            ]
+
         return res
 
         # if return_probability:
@@ -747,11 +739,10 @@ class TensorNetworkDecoder:
         # Build the tensor network
         if is_batch:
             tn = TensorNetwork(
-                [t for t in self.full_tn.tensors if "SYNDROME" not in t.tags]
-            )
-            tn |= tensor_network_from_syndrome_batch(
-                syndrome_batch, self.check_inds, batch_index="batch_index"
-            )
+                [t for t in self.full_tn.tensors if "SYNDROME" not in t.tags])
+            tn |= tensor_network_from_syndrome_batch(syndrome_batch,
+                                                     self.check_inds,
+                                                     batch_index="batch_index")
         else:
             tn = self.full_tn
         set_tensor_type(tn, self._backend, self._dtype, self._device)
