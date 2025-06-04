@@ -35,14 +35,14 @@ def factorized_noise_model(
     if tensors_tags is None:
         tensors_tags = ["NOISE"] * len(error_indices)
 
-    for ei, eprob, etag in zip(error_indices, error_probabilities, tensors_tags):
+    for ei, eprob, etag in zip(error_indices, error_probabilities,
+                               tensors_tags):
         tensors.append(
             Tensor(
                 data=np.array([1.0 - eprob, eprob]),
                 inds=(ei,),
                 tags=oset([etag]),
-            )
-        )
+            ))
     return TensorNetwork(tensors)
 
 
@@ -69,12 +69,11 @@ def error_pairs_noise_model(
     if tensors_tags is None:
         tensors_tags = ["NOISE"] * len(error_index_pairs)
 
-    for ei, etensors, etag in zip(error_index_pairs, error_probabilities, tensors_tags):
-        tensors.append(
-            Tensor(
-                data=etensors,
-                inds=ei,
-                tags=oset([etag]),
-            )
-        )
+    for ei, etensors, etag in zip(error_index_pairs, error_probabilities,
+                                  tensors_tags):
+        tensors.append(Tensor(
+            data=etensors,
+            inds=ei,
+            tags=oset([etag]),
+        ))
     return TensorNetwork(tensors)

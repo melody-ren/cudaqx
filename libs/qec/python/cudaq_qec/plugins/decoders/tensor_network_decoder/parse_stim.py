@@ -6,6 +6,7 @@
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
 
+
 def convert_b8_to_bool(file_name: str, bits_per_shot: int) -> List[List[bool]]:
     with open(file_name, "rb") as f:
         data = f.read()

@@ -23,8 +23,8 @@ torch_compiled_contractor = torch.compile(einsum_torch)
 def contractor(subscripts, tensors, optimize="auto", slicing=tuple()):
     return oe.contract(subscripts, *tensors, optimize=optimize)
 
-torch_compiled_opt_einsum = torch.compile(contractor)
 
+torch_compiled_opt_einsum = torch.compile(contractor)
 
 
 def cutn_contractor(subscripts, tensors, optimize=None, slicing=tuple()):
@@ -36,10 +36,7 @@ def cutn_contractor(subscripts, tensors, optimize=None, slicing=tuple()):
 
 
 # this is used to determine the backend of the tensor arrays
-BACKENDS = [
-    "numpy", 
-    "torch"
-]
+BACKENDS = ["numpy", "torch"]
 
 # this is used to determine the contractor to use
 CONTRACTORS = {
