@@ -28,6 +28,10 @@ sample_code_capacity = qecrt.sample_code_capacity
 from .plugins import decoders, codes
 import pkgutil, importlib, traceback
 
+# This seems necesary to ensure that the tensor network builder is available
+# Without this line cudaq_qec.get_decoder("tensor_network_decoder", ...) fails
+# with > RuntimeError: Unsupported array data type in kwargs.
+from .plugins.decoders.tensor_network_decoder import tensor_network_builder
 
 def iter_namespace(ns_pkg):
     return pkgutil.iter_modules(ns_pkg.__path__, ns_pkg.__name__ + ".")
