@@ -18,7 +18,7 @@ from autoray import do, to_backend_dtype
 
 import stim
 
-from .tensor_network_decoder.contractors import BACKENDS, CONTRACTORS, optimize_path
+from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path
 
 
 def tensor_network_from_parity_check(
@@ -449,7 +449,7 @@ class TensorNetworkDecoder:
             ind_map = {oi: ni for oi, ni in zip(old_inds, self.error_inds)}
             noise_model.reindex(ind_map, inplace=True)
         else:
-            from .tensor_network_decoder.noise_models import factorized_noise_model
+            from .tensor_network_utils.noise_models import factorized_noise_model
             noise_model = factorized_noise_model(self.error_inds, noise_model)
         self.init_noise_model(noise_model, contract=contract_noise_model)
 
@@ -476,8 +476,8 @@ class TensorNetworkDecoder:
         """
         Initialize a tensor network decoder from a stim detector error model.
         """
-        from .tensor_network_decoder.noise_models import factorized_noise_model
-        from .tensor_network_decoder.stim_interface import detector_error_model_to_check_matrices
+        from .tensor_network_utils.noise_models import factorized_noise_model
+        from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
 
         matrices = detector_error_model_to_check_matrices(
             stim_detector_error_model)
