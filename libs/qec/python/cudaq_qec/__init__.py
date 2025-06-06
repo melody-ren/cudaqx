@@ -32,6 +32,7 @@ def iter_namespace(ns_pkg):
     return pkgutil.iter_modules(ns_pkg.__path__, ns_pkg.__name__ + ".")
 
 
+
 for finder, name, ispkg in iter_namespace(plugins.decoders):
     try:
         importlib.import_module(name)
