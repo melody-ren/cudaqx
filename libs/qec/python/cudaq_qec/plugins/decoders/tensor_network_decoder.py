@@ -77,7 +77,7 @@ def tensor_network_from_parity_check(
     return TensorNetwork([
         Tensor(
             data=hadamard,
-            inds=(row_inds[j], col_inds[i]),
+            inds=(row_inds[i], col_inds[j]),
             tags=oset([tags[i]] if tags is not None else []),
         ) for i, j in zip(rows, cols)
     ])
@@ -386,7 +386,7 @@ class TensorNetworkDecoder:
 
         qec.Decoder.__init__(self, H)
 
-        num_checks, num_errs = H.shape
+        num_errs, num_checks = H.shape
         if check_inds is None:
             self.check_inds = [f"s_{j}" for j in range(num_checks)]
         if error_inds is None:
