@@ -466,38 +466,6 @@ class TensorNetworkDecoder:
             for ie in self.error_inds:
                 self.full_tn.contract_ind(ie)
 
-    @classmethod
-    def from_stim_detector_error_model(
-        cls,
-        stim_detector_error_model: stim.DetectorErrorModel,
-        contract_noise_model: bool = False,
-        **kwargs,
-    ) -> "TensorNetworkDecoder":
-        """
-        Initialize a tensor network decoder from a stim detector error model.
-        """
-        from .tensor_network_utils.noise_models import factorized_noise_model
-        from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
-
-        matrices = detector_error_model_to_check_matrices(
-            stim_detector_error_model)
-        H = matrices.check_matrix.todense()
-        num_errs = matrices.check_matrix.shape[1]
-        if "error_inds" not in kwargs:
-            error_inds = [f"e_{j}" for j in range(num_errs)]
-        else:
-            error_inds = kwargs["error_inds"]
-        noise_model = factorized_noise_model(error_inds, matrices.priors)
-
-        obj = cls(
-            H=H,
-            logicals=matrices.observables_matrix.todense(),
-            noise_model=noise_model,
-            **kwargs,
-        )
-
-        return obj
-
     def flip_syndromes(self, values: list) -> None:
         """Modify the tensor network in place
 
@@ -627,13 +595,6 @@ class TensorNetworkDecoder:
         ]
         return res
 
-        # if return_probability:
-        #     p0 = contraction_value[0]
-        #     p1 = contraction_value[1]
-        #     return p1 > p0, p0 / (p0 + p1), p1 / (p0 + p1)
-
-        # return contraction_value[1] > contraction_value[0]
-
     def decode_batch(
         self,
         syndrome_batch: np.ndarray,
@@ -706,14 +667,6 @@ class TensorNetworkDecoder:
 
         return res
 
-        # if return_probability:
-        #     contraction_value /= contraction_value.sum(axis=1, keepdims=True)
-        #     p1 = contraction_value[:, 1]
-        #     p0 = contraction_value[:, 0]
-        #     return p1 > p0, p0, p1
-
-        # return contraction_value[:, 1] > contraction_value[:, 0]
-
     def optimize_path(
         self,
         output_inds,
@@ -759,3 +712,28 @@ class TensorNetworkDecoder:
         setattr(self, target, slices)
 
         return info
+
+
+def parse_detector_error_model(
+    stim_detector_error_model: stim.DetectorErrorModel,
+    error_inds: Optional[List[str]] = None,
+) -> Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
+    """
+    Construct a parity check matrix, logicals, and noise model
+    from a stim DetectorErrorModel. 
+    """
+    from .tensor_network_utils.noise_models import factorized_noise_model
+    from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
+
+    matrices = detector_error_model_to_check_matrices(
+        stim_detector_error_model)
+
+    H = matrices.check_matrix.todense()
+    logicals=matrices.observables_matrix.todense()
+    num_errs = matrices.check_matrix.shape[1]
+    
+    if error_inds is None:
+        error_inds = [f"e_{j}" for j in range(num_errs)]
+    noise_model = factorized_noise_model(error_inds, matrices.priors)
+
+    return H, logicals, noise_model
