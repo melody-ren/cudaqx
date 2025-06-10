@@ -12,12 +12,12 @@ import torch
 from cuquantum import tensornet as cutn
 from quimb.tensor import TensorNetwork
 
+
 def einsum_torch(
     subscripts: str,
     tensors: List[torch.Tensor],
     optimize: str = "auto",
-    slicing: Tuple = tuple()
-) -> torch.Tensor:
+    slicing: Tuple = tuple()) -> torch.Tensor:
     """
     Perform einsum contraction using torch.
 
@@ -32,14 +32,14 @@ def einsum_torch(
     """
     return torch.einsum(subscripts, *tensors)
 
+
 torch_compiled_contractor = torch.compile(einsum_torch)
 
-def contractor(
-    subscripts: str,
-    tensors: List[Any],
-    optimize: str = "auto",
-    slicing: Tuple = tuple()
-) -> Any:
+
+def contractor(subscripts: str,
+               tensors: List[Any],
+               optimize: str = "auto",
+               slicing: Tuple = tuple()) -> Any:
     """
     Perform einsum contraction using opt_einsum.
 
@@ -54,14 +54,15 @@ def contractor(
     """
     return oe.contract(subscripts, *tensors, optimize=optimize)
 
+
 torch_compiled_opt_einsum = torch.compile(contractor)
+
 
 def cutn_contractor(
     subscripts: str,
     tensors: List[Any],
     optimize: Optional[Any] = None,
-    slicing: Tuple = tuple()
-) -> Any:
+    slicing: Tuple = tuple()) -> Any:
     """
     Perform contraction using cuQuantum's tensornet contractor.
 
@@ -80,6 +81,7 @@ def cutn_contractor(
         optimize=cutn.OptimizerOptions(path=optimize, slicing=slicing),
     )
 
+
 # this is used to determine the backend of the tensor arrays
 BACKENDS: List[str] = ["numpy", "torch"]
 
@@ -91,11 +93,9 @@ CONTRACTORS: Dict[str, Callable] = {
     "cutensornet": cutn_contractor,
 }
 
-def optimize_path(
-    optimize: Any,
-    output_inds: Tuple[str, ...],
-    tn: TensorNetwork
-) -> Tuple[Any, Any]:
+
+def optimize_path(optimize: Any, output_inds: Tuple[str, ...],
+                  tn: TensorNetwork) -> Tuple[Any, Any]:
     """
     Optimize the contraction path for a tensor network.
 
