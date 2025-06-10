@@ -296,8 +296,7 @@ def _adjust_default_path_value(val: Any, is_cutensornet: bool) -> Any:
 
 def parse_detector_error_model(
     stim_detector_error_model: "stim.DetectorErrorModel",
-    error_inds: Optional[List[str]] = None,
-) -> Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
+) -> Tuple[npt.NDArray[Any], npt.NDArray[Any], List[float]]:
     """
     Construct a parity check matrix, logicals, and noise model from a stim DetectorErrorModel.
 
@@ -319,15 +318,12 @@ def parse_detector_error_model(
 
     matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
 
-    H = matrices.check_matrix.todense()
-    logicals = matrices.observables_matrix.todense()
-    num_errs = H.shape[1]
+    out_H = np.zeros(matrices.check_matrix.shape)
+    matrices.check_matrix.astype(np.float64).toarray(out=out_H)
+    out_L = np.zeros(matrices.observables_matrix.shape)
+    matrices.observables_matrix.astype(np.float64).toarray(out=out_L)
 
-    if error_inds is None:
-        error_inds = [f"e_{j}" for j in range(num_errs)]
-    noise_model = factorized_noise_model(error_inds, matrices.priors)
-
-    return H, logicals, noise_model
+    return out_H, out_H, [float(p) for p in matrices.priors]
 
 
 @qec.decoder("tensor_network_decoder")
