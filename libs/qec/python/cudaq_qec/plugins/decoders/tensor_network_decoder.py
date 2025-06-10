@@ -313,7 +313,6 @@ def parse_detector_error_model(
                 - The logicals matrix (as a dense numpy array).
                 - The factorized noise model as a TensorNetwork.
     """
-    from .tensor_network_utils.noise_models import factorized_noise_model
     from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
 
     matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
