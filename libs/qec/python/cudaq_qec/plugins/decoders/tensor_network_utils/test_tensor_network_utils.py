@@ -37,7 +37,11 @@ def test_backends_and_contractors_dicts():
     for key in ["numpy", "torch", "torch_compiled_opt_einsum", "cutensornet"]:
         assert key in CONTRACTORS
     # Check that at least one CONTRACTORS key contains a BACKENDS key as a substring (except "cutensornet")
-    assert any(any(b in k for k in CONTRACTORS if k != "cutensornet") for b in BACKENDS)
+    assert any(
+        any(b in k
+            for k in CONTRACTORS
+            if k != "cutensornet")
+        for b in BACKENDS)
 
 
 def test_optimize_path_numpy_variants():
@@ -73,13 +77,18 @@ def test_factorized_noise_model_basic():
     error_indices = ['e0', 'e1', 'e2']
     error_probabilities = [0.1, 0.5, 0.9]
     tags = ['tag0', 'tag1', 'tag2']
-    tn = factorized_noise_model(error_indices, error_probabilities, tensors_tags=tags)
+    tn = factorized_noise_model(error_indices,
+                                error_probabilities,
+                                tensors_tags=tags)
     assert isinstance(tn, TensorNetwork)
     assert len(tn.tensors) == 3
     for i, t in enumerate(tn.tensors):
-        np.testing.assert_array_equal(t.data, np.array([1.0 - error_probabilities[i], error_probabilities[i]]))
+        np.testing.assert_array_equal(
+            t.data,
+            np.array([1.0 - error_probabilities[i], error_probabilities[i]]))
         assert t.inds == (error_indices[i],)
         assert tags[i] in t.tags
+
 
 def test_factorized_noise_model_default_tags():
     error_indices = ['e0', 'e1']
@@ -88,17 +97,24 @@ def test_factorized_noise_model_default_tags():
     for t in tn.tensors:
         assert "NOISE" in t.tags
 
+
 def test_error_pairs_noise_model_basic():
     error_index_pairs = [('e0', 'e1'), ('e2', 'e3')]
-    error_probabilities = [np.array([[0.9, 0.1], [0.2, 0.8]]), np.array([[0.7, 0.3], [0.4, 0.6]])]
+    error_probabilities = [
+        np.array([[0.9, 0.1], [0.2, 0.8]]),
+        np.array([[0.7, 0.3], [0.4, 0.6]])
+    ]
     tags = ['tagA', 'tagB']
-    tn = error_pairs_noise_model(error_index_pairs, error_probabilities, tensors_tags=tags)
+    tn = error_pairs_noise_model(error_index_pairs,
+                                 error_probabilities,
+                                 tensors_tags=tags)
     assert isinstance(tn, TensorNetwork)
     assert len(tn.tensors) == 2
     for i, t in enumerate(tn.tensors):
         np.testing.assert_array_equal(t.data, error_probabilities[i])
         assert t.inds == error_index_pairs[i]
         assert tags[i] in t.tags
+
 
 def test_error_pairs_noise_model_default_tags():
     error_index_pairs = [('x', 'y')]

@@ -15,7 +15,6 @@ from quimb import oset
 from quimb.tensor import Tensor, TensorNetwork
 from autoray import do, to_backend_dtype
 
-
 import stim
 
 from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path
@@ -725,13 +724,12 @@ def parse_detector_error_model(
     from .tensor_network_utils.noise_models import factorized_noise_model
     from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
 
-    matrices = detector_error_model_to_check_matrices(
-        stim_detector_error_model)
+    matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
 
     H = matrices.check_matrix.todense()
-    logicals=matrices.observables_matrix.todense()
+    logicals = matrices.observables_matrix.todense()
     num_errs = H.shape[1]
-    
+
     if error_inds is None:
         error_inds = [f"e_{j}" for j in range(num_errs)]
     noise_model = factorized_noise_model(error_inds, matrices.priors)
