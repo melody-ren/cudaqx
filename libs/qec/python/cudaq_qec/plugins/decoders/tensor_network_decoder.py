@@ -730,7 +730,7 @@ def parse_detector_error_model(
 
     H = matrices.check_matrix.todense()
     logicals=matrices.observables_matrix.todense()
-    num_errs = matrices.check_matrix.shape[1]
+    num_errs = H.shape[1]
     
     if error_inds is None:
         error_inds = [f"e_{j}" for j in range(num_errs)]
