@@ -11,10 +11,9 @@ from quimb.tensor import TensorNetwork
 
 
 def factorized_noise_model(
-    error_indices: List[str],
-    error_probabilities: Union[List[float], np.ndarray],
-    tensors_tags: Optional[List[str]] = None
-) -> TensorNetwork:
+        error_indices: List[str],
+        error_probabilities: Union[List[float], np.ndarray],
+        tensors_tags: Optional[List[str]] = None) -> TensorNetwork:
     """
     Construct a factorized (product state) noise model as a tensor network.
 
@@ -43,10 +42,9 @@ def factorized_noise_model(
 
 
 def error_pairs_noise_model(
-    error_index_pairs: List[Tuple[str, str]],
-    error_probabilities: List[np.ndarray],
-    tensors_tags: Optional[List[str]] = None
-) -> TensorNetwork:
+        error_index_pairs: List[Tuple[str, str]],
+        error_probabilities: List[np.ndarray],
+        tensors_tags: Optional[List[str]] = None) -> TensorNetwork:
     """
     Construct a noise model as a tensor network for correlated error pairs.
 

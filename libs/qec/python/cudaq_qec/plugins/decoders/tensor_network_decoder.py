@@ -75,10 +75,8 @@ def tensor_network_from_parity_check(
     ])
 
 
-def tensor_network_from_single_syndrome(
-    syndrome: List[bool],
-    check_inds: List[str]
-) -> TensorNetwork:
+def tensor_network_from_single_syndrome(syndrome: List[bool],
+                                        check_inds: List[str]) -> TensorNetwork:
     """Initialize the syndrome tensor network.
 
     Args:
@@ -101,8 +99,7 @@ def tensor_network_from_single_syndrome(
 
 
 def prepare_syndrome_data_batch(
-    syndrome_data: npt.NDArray[Any]
-) -> npt.NDArray[Any]:
+        syndrome_data: npt.NDArray[Any]) -> npt.NDArray[Any]:
     """Prepare the syndrome data for the parametrized tensor network.
 
     The shape of the returned array is (syndrome_length, shots, 2).
@@ -184,11 +181,8 @@ def tensor_network_from_logical_observable(
     )
 
 
-def tensor_to_cpu(
-    data: Any,
-    backend: str,
-    dtype: str
-) -> Union[np.ndarray, "torch.Tensor"]:
+def tensor_to_cpu(data: Any, backend: str,
+                  dtype: str) -> Union[np.ndarray, "torch.Tensor"]:
     """Convert a tensor to CPU if it is on GPU.
 
     Args:
@@ -213,11 +207,7 @@ def tensor_to_cpu(
     )
 
 
-def tensor_to_gpu(
-    data: Any,
-    dtype: str,
-    device: str
-) -> "torch.Tensor":
+def tensor_to_gpu(data: Any, dtype: str, device: str) -> "torch.Tensor":
     """Convert a tensor to GPU.
 
     Args:
@@ -258,10 +248,7 @@ def set_tensor_type(
         tn.apply_to_arrays(lambda x: tensor_to_gpu(x, dtype, device))
 
 
-def set_backend(
-    contractor_name: str,
-    device: str
-) -> str:
+def set_backend(contractor_name: str, device: str) -> str:
     """Set the backend for the contractor.
 
     Args:
@@ -291,10 +278,7 @@ def set_backend(
                 return b
 
 
-def _adjust_default_path_value(
-    val: Any,
-    is_cutensornet: bool
-) -> Any:
+def _adjust_default_path_value(val: Any, is_cutensornet: bool) -> Any:
     """Adjust the default path value for the contractor.
 
     Args:
@@ -531,11 +515,9 @@ class TensorNetworkDecoder:
             noise_model = factorized_noise_model(self.error_inds, noise_model)
         self.init_noise_model(noise_model, contract=contract_noise_model)
 
-    def init_noise_model(
-        self,
-        noise_model: TensorNetwork,
-        contract: bool = False
-    ) -> None:
+    def init_noise_model(self,
+                         noise_model: TensorNetwork,
+                         contract: bool = False) -> None:
         """Initialize the noise model.
 
         Args:
@@ -552,10 +534,7 @@ class TensorNetworkDecoder:
             for ie in self.error_inds:
                 self.full_tn.contract_ind(ie)
 
-    def flip_syndromes(
-        self,
-        values: List[bool]
-    ) -> None:
+    def flip_syndromes(self, values: List[bool]) -> None:
         """Modify the tensor network in place to represent a given syndrome.
 
         Args:
@@ -585,12 +564,10 @@ class TensorNetworkDecoder:
             elif not bool(values[ind]) and t.data[1] != 1:
                 t.modify(data=plus)
 
-    def set_contractor(
-        self,
-        contractor: str,
-        dtype: Optional[str] = None,
-        device: Optional[str] = None
-    ) -> None:
+    def set_contractor(self,
+                       contractor: str,
+                       dtype: Optional[str] = None,
+                       device: Optional[str] = None) -> None:
         """Set the contractor for the tensor network.
 
         Args:
