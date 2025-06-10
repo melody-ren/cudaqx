@@ -7,7 +7,8 @@
 # ============================================================================ #
 from typing import Any, List, Optional, Tuple, Union
 import numpy as np
-from quimb.tensor import TensorNetwork
+from quimb import oset
+from quimb.tensor import Tensor, TensorNetwork
 
 
 def factorized_noise_model(
