@@ -53,9 +53,9 @@ def tensor_network_from_parity_check(
 
     Args:
         parity_check_matrix (np.ndarray): The parity check matrix.
-        row_inds (list[str]): The indices of the rows.
-        col_inds (list[str]): The indices of the columns.
-        tags (list[str], optional): The tags of the Hadamard tensors.
+        row_inds (List[str]): The indices of the rows.
+        col_inds (List[str]): The indices of the columns.
+        tags (Optional[List[str]], optional): The tags of the Hadamard tensors.
 
     Returns:
         TensorNetwork: The tensor network.
@@ -192,9 +192,9 @@ def tensor_to_cpu(
     """Convert a tensor to CPU if it is on GPU.
 
     Args:
-        data: The tensor data (numpy array or torch tensor).
-        backend: The backend to use ("numpy" or "torch").
-        dtype: The data type to convert to.
+        data (Any): The tensor data (numpy array or torch tensor).
+        backend (str): The backend to use ("numpy" or "torch").
+        dtype (str): The data type to convert to.
 
     Returns:
         np.ndarray or torch.Tensor: The tensor on CPU with the specified dtype and backend.
@@ -391,35 +391,20 @@ class TensorNetworkDecoder:
         syndrome_tn (TensorNetwork): The tensor network for the syndrome.
         noise_model (TensorNetwork): The noise model tensor network.
         full_tn (TensorNetwork): The full tensor network including code, logicals, syndrome, and noise model.
-        check_inds (list[str]): The check indices.
-        error_inds (list[str]): The error indices.
-        logical_inds (list[str]): The logical indices.
-        logical_obs_inds (list[str]): The logical observable indices.
-        logicals_tags (list[str]): The logicals tags.
-        _contractor_name (str): The contractor to use. One of the keys of the `.contractors.CONTRACTORS` dictionary.
+        check_inds (List[str]): The check indices.
+        error_inds (List[str]): The error indices.
+        logical_inds (List[str]): The logical indices.
+        logical_obs_inds (List[str]): The logical observable indices.
+        logicals_tags (List[str]): The logicals tags.
+        _contractor_name (str): The contractor to use.
         _backend (str): The backend used for tensor operations ("numpy" or "torch").
         _dtype (str): The data type of the tensors.
         _device (str): The device for tensor operations ("cpu" or "cuda:X").
-        path_single: The contraction path for single syndrome decoding.
-        path_batch: The contraction path for batch decoding.
-        slicing_single: Slicing specification for single syndrome contraction.
-        slicing_batch: Slicing specification for batch contraction.
-
-    Methods:
-        init_noise_model(noise_model: TensorNetwork, contract: bool = False) -> None:
-            Initialize or update the noise model.
-        decode(syndrome: list, logical_observable: Optional[str] = None, return_probability: bool = False) -> bool:
-            Decode a single syndrome.
-        decode_batch(syndrome_batch: np.ndarray, logical_observable: Optional[str] = None, return_probability: bool = False):
-            Decode a batch of syndromes.
-        set_contractor(contractor: str, dtype: str = None, device: str = None) -> None:
-            Set the contractor, backend, dtype, and device for the tensor network.
-        flip_syndromes(values: list) -> None:
-            Modify the tensor network in place to represent a given syndrome.
-        optimize_path(output_inds, optimize=None, syndrome_batch: Optional[np.ndarray] = None):
-            Optimize the contraction path for the tensor network.
+        path_single (Any): The contraction path for single syndrome decoding.
+        path_batch (Any): The contraction path for batch decoding.
+        slicing_single (Any): Slicing specification for single syndrome contraction.
+        slicing_batch (Any): Slicing specification for batch contraction.
     """
-
     code_tn: TensorNetwork
     logicals_tn: TensorNetwork
     syndrome_tn: TensorNetwork
@@ -656,15 +641,16 @@ class TensorNetworkDecoder:
         logical_observable: Optional[str] = None,
         return_probability: bool = False,
     ) -> "qec.DecoderResult":
-        """Decode the syndrome by contracting the full tensor network.
+        """
+        Decode the syndrome by contracting the full tensor network.
 
         Args:
-            syndrome (list): The syndrome ordered as the check indices.
-            logical_observable (str, optional): The index of the logical observable to use. If not specified,
-                there must be only one logical observable.
+            syndrome (List[bool]): The syndrome ordered as the check indices.
+            logical_observable (Optional[str], optional): The index of the logical observable to use.
+            return_probability (bool, optional): Whether to return the flip probability.
 
         Returns:
-            qec.DecoderResult: The result of the decoding. 
+            qec.DecoderResult: The result of the decoding.
         """
         assert hasattr(self, "noise_model")
         assert len(syndrome) == len(self.check_inds), (
