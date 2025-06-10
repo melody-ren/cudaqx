@@ -21,10 +21,10 @@ from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_pa
 
 
 def tensor_network_from_parity_check(
-    parity_check_matrix: np.ndarray,
-    row_inds: list[str],
-    col_inds: list[str],
-    tags: list[str] = None,
+    parity_check_matrix: npt.NDArray[Any],
+    row_inds: List[str],
+    col_inds: List[str],
+    tags: Optional[List[str]] = None,
 ) -> TensorNetwork:
     """Build a sparse tensor-network representation of a parity-check matrix.
 
@@ -75,8 +75,10 @@ def tensor_network_from_parity_check(
     ])
 
 
-def tensor_network_from_single_syndrome(syndrome: list[bool],
-                                        check_inds: list[str]) -> None:
+def tensor_network_from_single_syndrome(
+    syndrome: List[bool],
+    check_inds: List[str]
+) -> TensorNetwork:
     """Initialize the syndrome tensor network.
 
     Args:
@@ -98,7 +100,9 @@ def tensor_network_from_single_syndrome(syndrome: list[bool],
     ])
 
 
-def prepare_syndrome_data_batch(syndrome_data: np.ndarray) -> np.ndarray:
+def prepare_syndrome_data_batch(
+    syndrome_data: npt.NDArray[Any]
+) -> npt.NDArray[Any]:
     """Prepare the syndrome data for the parametrized tensor network.
 
     The shape of the returned array is (syndrome_length, shots, 2).
@@ -118,10 +122,10 @@ def prepare_syndrome_data_batch(syndrome_data: np.ndarray) -> np.ndarray:
 
 
 def tensor_network_from_syndrome_batch(
-    detection_events: np.ndarray,
-    syndrome_inds: list[str],
+    detection_events: npt.NDArray[Any],
+    syndrome_inds: List[str],
     batch_index: str = "batch_index",
-    tags: list[str] = None,
+    tags: Optional[List[str]] = None,
 ) -> TensorNetwork:
     """Build a tensor network from a batch of syndromes.
 
@@ -156,10 +160,10 @@ def tensor_network_from_syndrome_batch(
 
 
 def tensor_network_from_logical_observable(
-    logicals: np.ndarray,
-    logical_inds: list[str],
-    logical_obs_inds: list[str],
-    logicals_tags: list[str] = None,
+    logicals: npt.NDArray[Any],
+    logical_inds: List[str],
+    logical_obs_inds: List[str],
+    logicals_tags: Optional[List[str]] = None,
 ) -> TensorNetwork:
     """Build a tensor network for logical observables.
 
@@ -180,7 +184,11 @@ def tensor_network_from_logical_observable(
     )
 
 
-def tensor_to_cpu(data, backend, dtype):
+def tensor_to_cpu(
+    data: Any,
+    backend: str,
+    dtype: str
+) -> Union[np.ndarray, "torch.Tensor"]:
     """Convert a tensor to CPU if it is on GPU.
 
     Args:
@@ -205,7 +213,11 @@ def tensor_to_cpu(data, backend, dtype):
     )
 
 
-def tensor_to_gpu(data, dtype, device):
+def tensor_to_gpu(
+    data: Any,
+    dtype: str,
+    device: str
+) -> "torch.Tensor":
     """Convert a tensor to GPU.
 
     Args:
@@ -246,7 +258,10 @@ def set_tensor_type(
         tn.apply_to_arrays(lambda x: tensor_to_gpu(x, dtype, device))
 
 
-def set_backend(contractor_name, device) -> None:
+def set_backend(
+    contractor_name: str,
+    device: str
+) -> str:
     """Set the backend for the contractor.
 
     Args:
@@ -276,7 +291,10 @@ def set_backend(contractor_name, device) -> None:
                 return b
 
 
-def _adjust_default_path_value(val, is_cutensornet):
+def _adjust_default_path_value(
+    val: Any,
+    is_cutensornet: bool
+) -> Any:
     """Adjust the default path value for the contractor.
 
     Args:
@@ -290,6 +308,42 @@ def _adjust_default_path_value(val, is_cutensornet):
         return None if val == "auto" else val
     else:
         return "auto" if val is None else val
+
+
+def parse_detector_error_model(
+    stim_detector_error_model: "stim.DetectorErrorModel",
+    error_inds: Optional[List[str]] = None,
+) -> Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
+    """
+    Construct a parity check matrix, logicals, and noise model from a stim DetectorErrorModel.
+
+    Args:
+        stim_detector_error_model (stim.DetectorErrorModel): 
+            The stim DetectorErrorModel instance to parse.
+        error_inds (Optional[List[str]], optional): 
+            List of error index names to use for the noise model. If None, defaults to ["e_0", ..., "e_{n-1}"].
+
+    Returns:
+        Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]: 
+            A tuple containing:
+                - The parity check matrix (as a dense numpy array).
+                - The logicals matrix (as a dense numpy array).
+                - The factorized noise model as a TensorNetwork.
+    """
+    from .tensor_network_utils.noise_models import factorized_noise_model
+    from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
+
+    matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
+
+    H = matrices.check_matrix.todense()
+    logicals = matrices.observables_matrix.todense()
+    num_errs = H.shape[1]
+
+    if error_inds is None:
+        error_inds = [f"e_{j}" for j in range(num_errs)]
+    noise_model = factorized_noise_model(error_inds, matrices.priors)
+
+    return H, logicals, noise_model
 
 
 @qec.decoder("tensor_network_decoder")
@@ -366,15 +420,34 @@ class TensorNetworkDecoder:
             Optimize the contraction path for the tensor network.
     """
 
+    code_tn: TensorNetwork
+    logicals_tn: TensorNetwork
+    syndrome_tn: TensorNetwork
+    noise_model: TensorNetwork
+    full_tn: TensorNetwork
+    check_inds: List[str]
+    error_inds: List[str]
+    logical_inds: List[str]
+    logical_obs_inds: List[str]
+    logicals_tags: List[str]
+    _contractor_name: str
+    _backend: str
+    _dtype: str
+    _device: str
+    path_single: Any
+    path_batch: Any
+    slicing_single: Any
+    slicing_batch: Any
+
     def __init__(
         self,
         H: npt.NDArray[Any],
         logicals: npt.NDArray[Any],
         noise_model: Union[TensorNetwork, List[float]],
-        check_inds: Optional[list[str]] = None,
-        error_inds: Optional[list[str]] = None,
-        logical_inds: Optional[list[str]] = None,
-        logicals_tags: Optional[list[str]] = None,
+        check_inds: Optional[List[str]] = None,
+        error_inds: Optional[List[str]] = None,
+        logical_inds: Optional[List[str]] = None,
+        logicals_tags: Optional[List[str]] = None,
         contract_noise_model: bool = True,
         contractor_name: Optional[str] = "numpy",
         dtype: str = "float64",
@@ -473,9 +546,11 @@ class TensorNetworkDecoder:
             noise_model = factorized_noise_model(self.error_inds, noise_model)
         self.init_noise_model(noise_model, contract=contract_noise_model)
 
-    def init_noise_model(self,
-                         noise_model: TensorNetwork,
-                         contract: bool = False) -> None:
+    def init_noise_model(
+        self,
+        noise_model: TensorNetwork,
+        contract: bool = False
+    ) -> None:
         """Initialize the noise model.
 
         Args:
@@ -492,7 +567,10 @@ class TensorNetworkDecoder:
             for ie in self.error_inds:
                 self.full_tn.contract_ind(ie)
 
-    def flip_syndromes(self, values: list) -> None:
+    def flip_syndromes(
+        self,
+        values: List[bool]
+    ) -> None:
         """Modify the tensor network in place to represent a given syndrome.
 
         Args:
@@ -522,10 +600,12 @@ class TensorNetworkDecoder:
             elif not bool(values[ind]) and t.data[1] != 1:
                 t.modify(data=plus)
 
-    def set_contractor(self,
-                       contractor: str,
-                       dtype: str = None,
-                       device: str = None) -> None:
+    def set_contractor(
+        self,
+        contractor: str,
+        dtype: Optional[str] = None,
+        device: Optional[str] = None
+    ) -> None:
         """Set the contractor for the tensor network.
 
         Args:
@@ -572,9 +652,10 @@ class TensorNetworkDecoder:
 
     def decode(
         self,
-        syndrome: list,
+        syndrome: List[bool],
         logical_observable: Optional[str] = None,
-    ) -> qec.DecoderResult:
+        return_probability: bool = False,
+    ) -> "qec.DecoderResult":
         """Decode the syndrome by contracting the full tensor network.
 
         Args:
@@ -620,9 +701,10 @@ class TensorNetworkDecoder:
 
     def decode_batch(
         self,
-        syndrome_batch: np.ndarray,
+        syndrome_batch: npt.NDArray[Any],
         logical_observable: Optional[str] = None,
-    ):
+        return_probability: bool = False,
+    ) -> List["qec.DecoderResult"]:
         """Decode a batch of detection events.
 
         Args:
@@ -677,10 +759,10 @@ class TensorNetworkDecoder:
 
     def optimize_path(
         self,
-        output_inds,
-        optimize=None,
-        syndrome_batch: Optional[np.ndarray] = None,
-    ) -> None:
+        output_inds: Any,
+        optimize: Any = None,
+        syndrome_batch: Optional[npt.NDArray[Any]] = None,
+    ) -> Any:
         """Optimize the contraction path of the tensor network.
 
         Args:
@@ -718,39 +800,3 @@ class TensorNetworkDecoder:
         setattr(self, target, slices)
 
         return info
-
-
-def parse_detector_error_model(
-    stim_detector_error_model: stim.DetectorErrorModel,
-    error_inds: Optional[List[str]] = None,
-) -> Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
-    """
-    Construct a parity check matrix, logicals, and noise model from a stim DetectorErrorModel.
-
-    Args:
-        stim_detector_error_model (stim.DetectorErrorModel): 
-            The stim DetectorErrorModel instance to parse.
-        error_inds (Optional[List[str]], optional): 
-            List of error index names to use for the noise model. If None, defaults to ["e_0", ..., "e_{n-1}"].
-
-    Returns:
-        Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]: 
-            A tuple containing:
-                - The parity check matrix (as a dense numpy array).
-                - The logicals matrix (as a dense numpy array).
-                - The factorized noise model as a TensorNetwork.
-    """
-    from .tensor_network_utils.noise_models import factorized_noise_model
-    from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
-
-    matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
-
-    H = matrices.check_matrix.todense()
-    logicals = matrices.observables_matrix.todense()
-    num_errs = H.shape[1]
-
-    if error_inds is None:
-        error_inds = [f"e_{j}" for j in range(num_errs)]
-    noise_model = factorized_noise_model(error_inds, matrices.priors)
-
-    return H, logicals, noise_model
