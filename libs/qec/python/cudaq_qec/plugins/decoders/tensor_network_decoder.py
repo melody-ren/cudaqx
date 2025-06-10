@@ -6,7 +6,7 @@
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
 
-from typing import Optional, Any, Union, List
+from typing import Optional, Any, Union, List, Tuple
 import cudaq_qec as qec
 
 import numpy as np
@@ -386,7 +386,7 @@ class TensorNetworkDecoder:
 
         qec.Decoder.__init__(self, H)
 
-        num_errs, num_checks = H.shape
+        num_checks, num_errs = H.shape
         if check_inds is None:
             self.check_inds = [f"s_{j}" for j in range(num_checks)]
         if error_inds is None:
@@ -402,16 +402,16 @@ class TensorNetworkDecoder:
         self.parity_check_matrix = H.copy()
         self.code_tn = tensor_network_from_parity_check(
             self.parity_check_matrix,
-            row_inds=self.error_inds,
-            col_inds=self.check_inds,
+            col_inds=self.error_inds,
+            row_inds=self.check_inds,
         )
 
         # Construct the tensor network of the logicals observables
         self.logicals = logicals.copy()
         self.logicals_tn = tensor_network_from_parity_check(
             self.logicals,
-            row_inds=self.error_inds,
-            col_inds=self.logical_inds,
+            col_inds=self.error_inds,
+            row_inds=self.logical_inds,
             tags=self.logicals_tags,
         )
 
@@ -438,8 +438,9 @@ class TensorNetworkDecoder:
         self.slicing_batch = tuple()
         self.slicing_single = tuple()
 
-        self.set_contractor(contractor_name, dtype, device)
+        self.set_contractor(contractor_name, dtype=dtype, device=device)
 
+        # Initialize the noise model
         if isinstance(noise_model, TensorNetwork):
             old_inds = noise_model._outer_inds
             assert len(old_inds) == len(self.error_inds), (
@@ -447,7 +448,7 @@ class TensorNetworkDecoder:
                 f"but expected {len(self.error_inds)} for the error indices.")
             # Reindex the noise model to match the error indices
             ind_map = {oi: ni for oi, ni in zip(old_inds, self.error_inds)}
-            noise_model.reindex(ind_map, inplace=True)
+            noise_model = noise_model.reindex(ind_map)
         else:
             from .tensor_network_utils.noise_models import factorized_noise_model
             noise_model = factorized_noise_model(self.error_inds, noise_model)
@@ -599,7 +600,6 @@ class TensorNetworkDecoder:
         self,
         syndrome_batch: np.ndarray,
         logical_observable: Optional[str] = None,
-        return_probability: bool = False,
     ):
         """
         Decode a batch of detection events.
@@ -702,7 +702,7 @@ class TensorNetworkDecoder:
 
         # Optimize the path
         path, info = optimize_path(optimize, output_inds, tn)
-        slices = info.slices if hasattr(info, "slices") else ()
+        slices = info.slices if hasattr(info, "slices") else tuple()
 
         # Assign result
         target = "path_batch" if is_batch else "path_single"
