@@ -229,20 +229,17 @@ def test_decoder_change_contractor(init_contractor, change_contractor,
         assert decoder._backend == "numpy"
 
 
-
 def test_parse_detector_error_model_real_stim_and_decoder_init():
 
     # import stim
     # Generate a real stim DetectorErrorModel
-    circuit = stim.Circuit.generated(
-        "surface_code:rotated_memory_z",
-        rounds=3,
-        distance=3,
-        after_clifford_depolarization=0.001,
-        after_reset_flip_probability=0.01,
-        before_measure_flip_probability=0.01,
-        before_round_data_depolarization=0.01
-    )
+    circuit = stim.Circuit.generated("surface_code:rotated_memory_z",
+                                     rounds=3,
+                                     distance=3,
+                                     after_clifford_depolarization=0.001,
+                                     after_reset_flip_probability=0.01,
+                                     before_measure_flip_probability=0.01,
+                                     before_round_data_depolarization=0.01)
     detector_error_model = circuit.detector_error_model(decompose_errors=True)
 
     # import cudaq_qec as qec
@@ -259,15 +256,15 @@ def test_parse_detector_error_model_real_stim_and_decoder_init():
     assert isinstance(priors, list)
     assert out_H.shape[1] == len(priors)
     # Try to initialize the TensorNetworkDecoder with the output
-    decoder = qec.get_decoder(
-        "tensor_network_decoder",
-        out_H,
-        logicals=out_L,
-        noise_model=priors)
+    decoder = qec.get_decoder("tensor_network_decoder",
+                              out_H,
+                              logicals=out_L,
+                              noise_model=priors)
     assert isinstance(decoder, TensorNetworkDecoder)
     assert decoder.parity_check_matrix.shape == out_H.shape
     assert decoder.logicals.shape == out_L.shape
     assert hasattr(decoder, "noise_model")
+
 
 def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     np.random.seed(42)
@@ -278,7 +275,8 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
 
     # Generate random binary parity check matrix and logicals
     H = np.random.randint(0, 2, size=(n_checks, n_errors)).astype(np.float64)
-    logicals = np.random.randint(0, 2, size=(n_logicals, n_errors)).astype(np.float64)
+    logicals = np.random.randint(0, 2,
+                                 size=(n_logicals, n_errors)).astype(np.float64)
     noise = np.random.uniform(0.01, 0.2, size=n_errors).tolist()
 
     import cudaq_qec as qec
@@ -298,12 +296,10 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
         ("cutensornet", "float32", "cuda:0"),
     ]
 
-    decoder = qec.get_decoder(
-        "tensor_network_decoder",
-        H,
-        logicals=logicals,
-        noise_model=noise
-    )
+    decoder = qec.get_decoder("tensor_network_decoder",
+                              H,
+                              logicals=logicals,
+                              noise_model=noise)
 
     # Generate a batch of random syndromes
     batch = np.random.choice([False, True], size=(n_batch, n_checks))
@@ -342,6 +338,12 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
             atol = 1e-5
 
         # Compare single and batch results
-        np.testing.assert_allclose(single_results, batch_results, rtol=rtol, atol=atol)
+        np.testing.assert_allclose(single_results,
+                                   batch_results,
+                                   rtol=rtol,
+                                   atol=atol)
         # Compare to expected results
-        np.testing.assert_allclose(batch_results, expected_cast, rtol=rtol, atol=atol)
+        np.testing.assert_allclose(batch_results,
+                                   expected_cast,
+                                   rtol=rtol,
+                                   atol=atol)

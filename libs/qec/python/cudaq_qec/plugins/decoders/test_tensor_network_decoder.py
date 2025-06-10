@@ -189,15 +189,13 @@ def test_parse_detector_error_model_with_real_stim():
     from .tensor_network_decoder import parse_detector_error_model
 
     # Generate a real stim DetectorErrorModel
-    circuit = stim.Circuit.generated(
-        "surface_code:rotated_memory_z",
-        rounds=3,
-        distance=3,
-        after_clifford_depolarization=0.001,
-        after_reset_flip_probability=0.01,
-        before_measure_flip_probability=0.01,
-        before_round_data_depolarization=0.01
-    )
+    circuit = stim.Circuit.generated("surface_code:rotated_memory_z",
+                                     rounds=3,
+                                     distance=3,
+                                     after_clifford_depolarization=0.001,
+                                     after_reset_flip_probability=0.01,
+                                     before_measure_flip_probability=0.01,
+                                     before_round_data_depolarization=0.01)
     detector_error_model = circuit.detector_error_model(decompose_errors=True)
 
     # Call the function under test
