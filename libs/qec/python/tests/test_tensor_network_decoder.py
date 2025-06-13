@@ -86,6 +86,10 @@ def test_decoder_set_contractor_invalid():
 
 
 def test_TensorNetworkDecoder_optimize_path_all_variants():
+    import torch
+    if not torch.cuda.is_available():
+        pytest.skip("No GPUs available, skip cuQuantum test.")
+
     import cotengra
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
