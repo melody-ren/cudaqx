@@ -40,8 +40,13 @@ fi
 # QEC library
 # ======================================
 
-${python} -m pip install /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl
+# Install the wheel with tensor network decoder optional dependencies
+${python} -m pip install /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl[tn_decoder]
 ${python} -m pytest -s libs/qec/python/tests/
+
+# Run additional tensor network decoder tests
+${python} -m pytest -s libs/qec/python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py
+${python} -m pytest -s libs/qec/python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py
 
 # Solvers library
 # ======================================
