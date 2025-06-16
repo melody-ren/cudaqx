@@ -42,7 +42,9 @@ fi
 
 # Check platform from matrix configuration
 if [ "$2" = "amd64" ]; then
-  # Install the wheel with tensor network decoder optional dependencies
+  # First install tensor network decoder dependencies
+  ${python} -m pip install stim quimb opt_einsum torch autoray
+  # Then install the wheel with tensor network decoder optional dependencies
   ${python} -m pip install /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl[tn_decoder]
   ${python} -m pytest -s libs/qec/python/tests/
 
@@ -53,7 +55,8 @@ else
   # On ARM, install without tensor network decoder dependencies
   echo "Running on ARM architecture - skipping tensor network decoder tests"
   ${python} -m pip install /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl
-  ${python} -m pytest -s libs/qec/python/tests/
+  # Run all tests except tensor network decoder test from tests directory
+  ${python} -m pytest -s libs/qec/python/tests/ --ignore=libs/qec/python/tests/test_tensor_network_decoder.py
 fi
 
 # Solvers library
