@@ -90,6 +90,11 @@ jobs:
           python=python${python_version}
           echo "Using python command: ${python}"
           echo "Current platform: ${{ matrix.platform }}"
+          
+          # Set up PYTHONPATH like CMake did
+          export PYTHONPATH="${CUDAQ_INSTALL_DIR}:${{ steps.build.outputs.build-dir }}/python"
+          echo "PYTHONPATH: ${PYTHONPATH}"
+          
           if [ "${{ matrix.platform }}" = "amd64" ]; then
             echo "Running on amd64 - running all tests"
             ${python} -m pytest -v libs/qec/python/tests/
