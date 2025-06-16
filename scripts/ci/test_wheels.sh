@@ -19,6 +19,7 @@ set -e
 python_version=$1
 python_version_no_dot=$(echo $python_version | tr -d '.') # 3.10 --> 310
 python=python${python_version}
+platform=$2
 
 ${python} -m pip install --no-cache-dir pytest
 
@@ -41,7 +42,8 @@ fi
 # ======================================
 
 # Check platform from matrix configuration
-if [ "$2" = "amd64" ]; then
+echo "Platform: $platform"
+if [ "$platform" = "amd64" ]; then
   # First install tensor network decoder dependencies
   ${python} -m pip install stim quimb opt_einsum torch autoray
   # Then install the wheel with tensor network decoder optional dependencies
