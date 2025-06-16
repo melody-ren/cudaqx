@@ -45,6 +45,13 @@ def test_backends_and_contractors_dicts():
 
 
 def test_optimize_path_numpy_variants():
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            pytest.skip("No GPUs available, skip cuQuantum test.")
+    except ImportError:
+        pass  # Skip if torch not available
+
     from quimb.tensor import TensorNetwork, Tensor
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
@@ -60,13 +67,11 @@ def test_optimize_path_numpy_variants():
     assert isinstance(path, (list, tuple))
     assert isinstance(info, PathInfo)
 
-    # Case 2: optimize=None (should use appropriate path finder based on environment)
-    try:
-        import torch
-        if torch.cuda.is_available():
-            path2, info2 = optimize_path(None, output_inds=("a",), tn=tn)
-    except ImportError:
-        pass  # Skip Case 2 if torch not available
+    # Case 2: optimize=None (should use cuQuantum path finder)
+    path2, info2 = optimize_path(None, output_inds=("a",), tn=tn)
+    assert path2 is not None
+    from cuquantum.tensornet.configuration import OptimizerInfo
+    assert isinstance(info2, OptimizerInfo)
 
     # Case 3: optimize=OptimizerOptions
     opt = cutn.OptimizerOptions()
