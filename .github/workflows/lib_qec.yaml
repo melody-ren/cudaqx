@@ -90,7 +90,7 @@ jobs:
             cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
           else
             # Skip tensor network decoder tests on arm64
-            PYTEST_ADDOPTS="--ignore=python/tests/test_tensor_network_decoder.py --ignore=python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py --ignore=python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py" \
+            PYTEST_ADDOPTS="--ignore=libs/qec/python/tests/test_tensor_network_decoder.py --ignore=libs/qec/python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py --ignore=libs/qec/python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py" \
             cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
           fi
 
