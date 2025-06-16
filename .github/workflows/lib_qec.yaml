@@ -85,13 +85,22 @@ jobs:
 
       - name: Run Python tests
         run: |
+          # Set up python command based on version
+          python_version=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
+          python=python${python_version}
+          echo "Using python command: ${python}"
+          echo "Current platform: ${{ matrix.platform }}"
           if [ "${{ matrix.platform }}" = "amd64" ]; then
-            # Run all tests on amd64
-            cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
+            echo "Running on amd64 - running all tests"
+            ${python} -m pytest -v libs/qec/python/tests/
+            ${python} -m pytest -v libs/qec/python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py
+            ${python} -m pytest -v libs/qec/python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py
           else
-            # Skip tensor network decoder tests on arm64
-            PYTEST_ADDOPTS="--ignore=libs/qec/python/tests/test_tensor_network_decoder.py --ignore=libs/qec/python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py --ignore=libs/qec/python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py" \
-            cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
+            echo "Running on arm64 - skipping tensor network tests"
+            ${python} -m pytest -v libs/qec/python/tests/ \
+              --ignore=libs/qec/python/tests/test_tensor_network_decoder.py \
+              --ignore=libs/qec/python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py \
+              --ignore=libs/qec/python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py
           fi
 
       # ========================================================================
