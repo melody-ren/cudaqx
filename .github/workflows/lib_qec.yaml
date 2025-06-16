@@ -76,10 +76,23 @@ jobs:
       # ========================================================================
  
       - name: Install python requirements
-        run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 quimb torch opt_einsum stim
+        run: |
+          pip install numpy pytest cupy-cuda12x cuquantum-python-cu12
+          if [ "${{ matrix.platform }}" = "amd64" ]; then
+            # Install tensor network decoder dependencies on amd64
+            pip install quimb torch opt_einsum stim
+          fi
 
       - name: Run Python tests
-        run: cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
+        run: |
+          if [ "${{ matrix.platform }}" = "amd64" ]; then
+            # Run all tests on amd64
+            cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
+          else
+            # Skip tensor network decoder tests on arm64
+            PYTEST_ADDOPTS="--ignore=python/tests/test_tensor_network_decoder.py --ignore=python/cudaq_qec/plugins/decoders/test_tensor_network_decoder.py --ignore=python/cudaq_qec/plugins/decoders/tensor_network_utils/test_tensor_network_utils.py" \
+            cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
+          fi
 
       # ========================================================================
       # Run example tests

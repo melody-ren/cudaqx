@@ -47,7 +47,8 @@ if [ "$platform" = "amd64" ]; then
   # First install tensor network decoder dependencies
   ${python} -m pip install stim quimb opt_einsum torch autoray
   # Then install the wheel with tensor network decoder optional dependencies
-  ${python} -m pip install /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl[tn_decoder]
+  wheel_file=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
+  ${python} -m pip install "${wheel_file}[tn_decoder]"
   ${python} -m pytest -s libs/qec/python/tests/
 
   # Run additional tensor network decoder tests
