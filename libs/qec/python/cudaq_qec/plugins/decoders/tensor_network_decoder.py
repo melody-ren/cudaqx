@@ -6,7 +6,7 @@
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
 
-from typing import Optional, Any, Union, List, Tuple
+from typing import Optional, Any, Union
 import cudaq_qec as qec
 
 import numpy as np
@@ -22,9 +22,9 @@ from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_pa
 
 def tensor_network_from_parity_check(
     parity_check_matrix: npt.NDArray[Any],
-    row_inds: List[str],
-    col_inds: List[str],
-    tags: Optional[List[str]] = None,
+    row_inds: list[str],
+    col_inds: list[str],
+    tags: Optional[list[str]] = None,
 ) -> TensorNetwork:
     """Build a sparse tensor-network representation of a parity-check matrix.
 
@@ -53,9 +53,9 @@ def tensor_network_from_parity_check(
 
     Args:
         parity_check_matrix (np.ndarray): The parity check matrix.
-        row_inds (List[str]): The indices of the rows.
-        col_inds (List[str]): The indices of the columns.
-        tags (Optional[List[str]], optional): The tags of the Hadamard tensors.
+        row_inds (list[str]): The indices of the rows.
+        col_inds (list[str]): The indices of the columns.
+        tags (Optional[list[str]], optional): The tags of the Hadamard tensors.
 
     Returns:
         TensorNetwork: The tensor network.
@@ -75,8 +75,8 @@ def tensor_network_from_parity_check(
     ])
 
 
-def tensor_network_from_single_syndrome(syndrome: List[bool],
-                                        check_inds: List[str]) -> TensorNetwork:
+def tensor_network_from_single_syndrome(syndrome: list[bool],
+                                        check_inds: list[str]) -> TensorNetwork:
     """Initialize the syndrome tensor network.
 
     Args:
@@ -120,9 +120,9 @@ def prepare_syndrome_data_batch(
 
 def tensor_network_from_syndrome_batch(
     detection_events: npt.NDArray[Any],
-    syndrome_inds: List[str],
+    syndrome_inds: list[str],
     batch_index: str = "batch_index",
-    tags: Optional[List[str]] = None,
+    tags: Optional[list[str]] = None,
 ) -> TensorNetwork:
     """Build a tensor network from a batch of syndromes.
 
@@ -158,9 +158,9 @@ def tensor_network_from_syndrome_batch(
 
 def tensor_network_from_logical_observable(
     logicals: npt.NDArray[Any],
-    logical_inds: List[str],
-    logical_obs_inds: List[str],
-    logicals_tags: Optional[List[str]] = None,
+    logical_inds: list[str],
+    logical_obs_inds: list[str],
+    logicals_tags: Optional[list[str]] = None,
 ) -> TensorNetwork:
     """Build a tensor network for logical observables.
 
@@ -296,19 +296,19 @@ def _adjust_default_path_value(val: Any, is_cutensornet: bool) -> Any:
 
 def parse_detector_error_model(
     stim_detector_error_model: "stim.DetectorErrorModel",
-    error_inds: Optional[List[str]] = None,
-) -> Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
+    error_inds: Optional[list[str]] = None,
+) -> tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
     """
     Construct a parity check matrix, logicals, and noise model from a stim DetectorErrorModel.
 
     Args:
         stim_detector_error_model (stim.DetectorErrorModel): 
             The stim DetectorErrorModel instance to parse.
-        error_inds (Optional[List[str]], optional): 
-            List of error index names to use for the noise model. If None, defaults to ["e_0", ..., "e_{n-1}"].
+        error_inds (Optional[list[str]], optional): 
+            list of error index names to use for the noise model. If None, defaults to ["e_0", ..., "e_{n-1}"].
 
     Returns:
-        Tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]: 
+        tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]: 
             A tuple containing:
                 - The parity check matrix (as a dense numpy array).
                 - The logicals matrix (as a dense numpy array).
@@ -375,11 +375,11 @@ class TensorNetworkDecoder:
         syndrome_tn (TensorNetwork): The tensor network for the syndrome.
         noise_model (TensorNetwork): The noise model tensor network.
         full_tn (TensorNetwork): The full tensor network including code, logicals, syndrome, and noise model.
-        check_inds (List[str]): The check indices.
-        error_inds (List[str]): The error indices.
-        logical_inds (List[str]): The logical indices.
-        logical_obs_inds (List[str]): The logical observable indices.
-        logicals_tags (List[str]): The logicals tags.
+        check_inds (list[str]): The check indices.
+        error_inds (list[str]): The error indices.
+        logical_inds (list[str]): The logical indices.
+        logical_obs_inds (list[str]): The logical observable indices.
+        logicals_tags (list[str]): The logicals tags.
         _contractor_name (str): The contractor to use.
         _backend (str): The backend used for tensor operations ("numpy" or "torch").
         _dtype (str): The data type of the tensors.
@@ -394,11 +394,11 @@ class TensorNetworkDecoder:
     syndrome_tn: TensorNetwork
     noise_model: TensorNetwork
     full_tn: TensorNetwork
-    check_inds: List[str]
-    error_inds: List[str]
-    logical_inds: List[str]
-    logical_obs_inds: List[str]
-    logicals_tags: List[str]
+    check_inds: list[str]
+    error_inds: list[str]
+    logical_inds: list[str]
+    logical_obs_inds: list[str]
+    logicals_tags: list[str]
     _contractor_name: str
     _backend: str
     _dtype: str
@@ -412,11 +412,11 @@ class TensorNetworkDecoder:
         self,
         H: npt.NDArray[Any],
         logicals: npt.NDArray[Any],
-        noise_model: Union[TensorNetwork, List[float]],
-        check_inds: Optional[List[str]] = None,
-        error_inds: Optional[List[str]] = None,
-        logical_inds: Optional[List[str]] = None,
-        logicals_tags: Optional[List[str]] = None,
+        noise_model: Union[TensorNetwork, list[float]],
+        check_inds: Optional[list[str]] = None,
+        error_inds: Optional[list[str]] = None,
+        logical_inds: Optional[list[str]] = None,
+        logicals_tags: Optional[list[str]] = None,
         contract_noise_model: bool = True,
         contractor_name: Optional[str] = "numpy",
         dtype: str = "float64",
@@ -428,7 +428,7 @@ class TensorNetworkDecoder:
         Args:
             H (np.ndarray): The parity check matrix. First dimension is the number of checks, second is the number of errors.
             logicals (np.ndarray): The logicals. First dimension is the number of logicals, second is the number of errors.
-            noise_model (Union[TensorNetwork, List[float]]): The noise model to use. Can be a tensor network or a list of probabilities.
+            noise_model (Union[TensorNetwork, list[float]]): The noise model to use. Can be a tensor network or a list of probabilities.
                 If a tensor network, it must have exactly parity_check_matrix.shape[1] open indices.
                 The same ordering is assumed as in the parity check matrix.
                 If a list, it must have the same length as parity_check_matrix.shape[1].
@@ -534,7 +534,7 @@ class TensorNetworkDecoder:
             for ie in self.error_inds:
                 self.full_tn.contract_ind(ie)
 
-    def flip_syndromes(self, values: List[bool]) -> None:
+    def flip_syndromes(self, values: list[bool]) -> None:
         """Modify the tensor network in place to represent a given syndrome.
 
         Args:
@@ -614,7 +614,7 @@ class TensorNetworkDecoder:
 
     def decode(
         self,
-        syndrome: List[bool],
+        syndrome: list[bool],
         logical_observable: Optional[str] = None,
         return_probability: bool = False,
     ) -> "qec.DecoderResult":
@@ -622,7 +622,7 @@ class TensorNetworkDecoder:
         Decode the syndrome by contracting the full tensor network.
 
         Args:
-            syndrome (List[bool]): The syndrome ordered as the check indices.
+            syndrome (list[bool]): The syndrome ordered as the check indices.
             logical_observable (Optional[str], optional): The index of the logical observable to use.
             return_probability (bool, optional): Whether to return the flip probability.
 
@@ -667,7 +667,7 @@ class TensorNetworkDecoder:
         syndrome_batch: npt.NDArray[Any],
         logical_observable: Optional[str] = None,
         return_probability: bool = False,
-    ) -> List["qec.DecoderResult"]:
+    ) -> list["qec.DecoderResult"]:
         """Decode a batch of detection events.
 
         Args:
@@ -676,7 +676,7 @@ class TensorNetworkDecoder:
                 there must be only one logical observable.
 
         Returns:
-            list[qec.DecoderResult]: List of results for each detection event in the batch.
+            list[qec.DecoderResult]: list of results for each detection event in the batch.
         """
 
         assert hasattr(self, "noise_model")
