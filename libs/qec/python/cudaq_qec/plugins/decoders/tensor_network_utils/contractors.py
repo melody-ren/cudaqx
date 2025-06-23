@@ -6,7 +6,7 @@
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
 
-from typing import Any, Callable, Dict, List, Tuple, Optional
+from typing import Any, Callable, Dict, Tuple, Optional
 import opt_einsum as oe
 import torch
 from cuquantum import tensornet as cutn
@@ -15,7 +15,7 @@ from quimb.tensor import TensorNetwork
 
 def einsum_torch(
     subscripts: str,
-    tensors: List[torch.Tensor],
+    tensors: list[torch.Tensor],
     optimize: str = "auto",
     slicing: Tuple = tuple()) -> torch.Tensor:
     """
@@ -23,7 +23,7 @@ def einsum_torch(
 
     Args:
         subscripts (str): The einsum subscripts.
-        tensors (List[torch.Tensor]): List of torch tensors to contract.
+        tensors (list[torch.Tensor]): list of torch tensors to contract.
         optimize (str, optional): Optimization strategy. Defaults to "auto".
         slicing (Tuple, optional): Slicing specification. Defaults to empty tuple.
 
@@ -37,7 +37,7 @@ torch_compiled_contractor = torch.compile(einsum_torch)
 
 
 def contractor(subscripts: str,
-               tensors: List[Any],
+               tensors: list[Any],
                optimize: str = "auto",
                slicing: Tuple = tuple()) -> Any:
     """
@@ -45,7 +45,7 @@ def contractor(subscripts: str,
 
     Args:
         subscripts (str): The einsum subscripts.
-        tensors (List[Any]): List of tensors to contract.
+        tensors (list[Any]): list of tensors to contract.
         optimize (str, optional): Optimization strategy. Defaults to "auto".
         slicing (Tuple, optional): Slicing specification. Defaults to empty tuple.
 
@@ -60,7 +60,7 @@ torch_compiled_opt_einsum = torch.compile(contractor)
 
 def cutn_contractor(
     subscripts: str,
-    tensors: List[Any],
+    tensors: list[Any],
     optimize: Optional[Any] = None,
     slicing: Tuple = tuple()) -> Any:
     """
@@ -68,7 +68,7 @@ def cutn_contractor(
 
     Args:
         subscripts (str): The einsum subscripts.
-        tensors (List[Any]): List of tensors to contract.
+        tensors (list[Any]): list of tensors to contract.
         optimize (Optional[Any], optional): cuQuantum optimizer options or path. Defaults to None.
         slicing (Tuple, optional): Slicing specification. Defaults to empty tuple.
 
@@ -83,7 +83,7 @@ def cutn_contractor(
 
 
 # this is used to determine the backend of the tensor arrays
-BACKENDS: List[str] = ["numpy", "torch"]
+BACKENDS: list[str] = ["numpy", "torch"]
 
 # this is used to determine the contractor to use
 CONTRACTORS: Dict[str, Callable] = {

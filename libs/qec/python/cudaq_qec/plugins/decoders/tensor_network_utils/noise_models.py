@@ -5,9 +5,10 @@
 # This source code and the accompanying materials are made available under     #
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
-from typing import Any, list, Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 import numpy as np
-from quimb.tensor import TensorNetwork
+from quimb import oset
+from quimb.tensor import TensorNetwork, Tensor
 
 
 def factorized_noise_model(
