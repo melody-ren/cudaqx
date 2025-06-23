@@ -11,14 +11,13 @@ import pytest
 
 from quimb.tensor import TensorNetwork
 
-from cudaq_qec.plugins.decoders.tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path
+from cudaq_qec.plugins.decoders.tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path, cutn_contractor
 from cudaq_qec.plugins.decoders.tensor_network_utils.noise_models import factorized_noise_model, error_pairs_noise_model
 
 
 def test_cutn_contractor_matches_numpy_gpu_check():
     import numpy as np
     import torch
-    from .contractors import cutn_contractor
     from cuquantum import tensornet as cutn
 
     # Check for GPU availability

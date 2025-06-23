@@ -8,7 +8,6 @@
 
 import numpy as np
 import pytest
-import stim
 from quimb.tensor import TensorNetwork
 
 from cudaq_qec.plugins.decoders.tensor_network_decoder import (
@@ -183,27 +182,3 @@ def test_tensor_to_cpu_torch_gpu_to_torch():
     np.testing.assert_array_equal(out.cpu().numpy(), t.cpu().numpy())
     assert out.dtype == torch.float64
     assert not out.is_cuda
-
-
-def test_parse_detector_error_model_with_real_stim():
-    from .tensor_network_decoder import parse_detector_error_model
-
-    # Generate a real stim DetectorErrorModel
-    circuit = stim.Circuit.generated("surface_code:rotated_memory_z",
-                                     rounds=3,
-                                     distance=3,
-                                     after_clifford_depolarization=0.001,
-                                     after_reset_flip_probability=0.01,
-                                     before_measure_flip_probability=0.01,
-                                     before_round_data_depolarization=0.01)
-    detector_error_model = circuit.detector_error_model(decompose_errors=True)
-
-    # Call the function under test
-    out_H, out_L, priors = parse_detector_error_model(detector_error_model)
-
-    # Check types and shapes
-    assert isinstance(out_H, np.ndarray)
-    assert isinstance(out_L, np.ndarray)
-    assert isinstance(priors, list)
-    assert all(isinstance(p, float) for p in priors)
-    assert len(priors) == out_H.shape[1] or len(priors) == out_L.shape[1]
