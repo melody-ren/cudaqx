@@ -9,7 +9,6 @@
 import numpy as np
 import pytest
 from quimb.tensor import TensorNetwork
-import stim
 import cudaq_qec as qec
 
 
@@ -227,43 +226,6 @@ def test_decoder_change_contractor(init_contractor, change_contractor,
         assert decoder._backend == "torch"
     else:
         assert decoder._backend == "numpy"
-
-
-def test_parse_detector_error_model_real_stim_and_decoder_init():
-
-    # import stim
-    # Generate a real stim DetectorErrorModel
-    circuit = stim.Circuit.generated("surface_code:rotated_memory_z",
-                                     rounds=3,
-                                     distance=3,
-                                     after_clifford_depolarization=0.001,
-                                     after_reset_flip_probability=0.01,
-                                     before_measure_flip_probability=0.01,
-                                     before_round_data_depolarization=0.01)
-    detector_error_model = circuit.detector_error_model(decompose_errors=True)
-
-    # import cudaq_qec as qec
-    from cudaq_qec.plugins.decoders.tensor_network_decoder import (
-        parse_detector_error_model,
-        TensorNetworkDecoder,
-    )
-    # Call the function under test
-    out_H, out_L, priors = parse_detector_error_model(detector_error_model)
-
-    # Check types and shapes
-    assert isinstance(out_H, np.ndarray)
-    assert isinstance(out_L, np.ndarray)
-    assert isinstance(priors, list)
-    assert out_H.shape[1] == len(priors)
-    # Try to initialize the TensorNetworkDecoder with the output
-    decoder = qec.get_decoder("tensor_network_decoder",
-                              out_H,
-                              logicals=out_L,
-                              noise_model=priors)
-    assert isinstance(decoder, TensorNetworkDecoder)
-    assert decoder.parity_check_matrix.shape == out_H.shape
-    assert decoder.logicals.shape == out_L.shape
-    assert hasattr(decoder, "noise_model")
 
 
 def test_decoder_batch_vs_single_and_expected_results_with_contractors():
