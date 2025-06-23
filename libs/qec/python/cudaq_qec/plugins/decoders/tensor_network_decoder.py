@@ -15,7 +15,7 @@ from quimb import oset
 from quimb.tensor import Tensor, TensorNetwork
 from autoray import do, to_backend_dtype
 
-import stim
+# import stim
 
 from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path
 
@@ -294,40 +294,40 @@ def _adjust_default_path_value(val: Any, is_cutensornet: bool) -> Any:
         return "auto" if val is None else val
 
 
-def parse_detector_error_model(
-    stim_detector_error_model: "stim.DetectorErrorModel",
-    error_inds: Optional[list[str]] = None,
-) -> tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
-    """
-    Construct a parity check matrix, logicals, and noise model from a stim DetectorErrorModel.
+# def parse_detector_error_model(
+#     stim_detector_error_model: "stim.DetectorErrorModel",
+#     error_inds: Optional[list[str]] = None,
+# ) -> tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]:
+#     """
+#     Construct a parity check matrix, logicals, and noise model from a stim DetectorErrorModel.
 
-    Args:
-        stim_detector_error_model (stim.DetectorErrorModel): 
-            The stim DetectorErrorModel instance to parse.
-        error_inds (Optional[list[str]], optional): 
-            list of error index names to use for the noise model. If None, defaults to ["e_0", ..., "e_{n-1}"].
+#     Args:
+#         stim_detector_error_model (stim.DetectorErrorModel): 
+#             The stim DetectorErrorModel instance to parse.
+#         error_inds (Optional[list[str]], optional): 
+#             list of error index names to use for the noise model. If None, defaults to ["e_0", ..., "e_{n-1}"].
 
-    Returns:
-        tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]: 
-            A tuple containing:
-                - The parity check matrix (as a dense numpy array).
-                - The logicals matrix (as a dense numpy array).
-                - The factorized noise model as a TensorNetwork.
-    """
-    from .tensor_network_utils.noise_models import factorized_noise_model
-    from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
+#     Returns:
+#         tuple[npt.NDArray[Any], npt.NDArray[Any], TensorNetwork]: 
+#             A tuple containing:
+#                 - The parity check matrix (as a dense numpy array).
+#                 - The logicals matrix (as a dense numpy array).
+#                 - The factorized noise model as a TensorNetwork.
+#     """
+#     from .tensor_network_utils.noise_models import factorized_noise_model
+#     from .tensor_network_utils.stim_interface import detector_error_model_to_check_matrices
 
-    matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
+#     matrices = detector_error_model_to_check_matrices(stim_detector_error_model)
 
-    H = matrices.check_matrix.todense()
-    logicals = matrices.observables_matrix.todense()
-    num_errs = H.shape[1]
+#     H = matrices.check_matrix.todense()
+#     logicals = matrices.observables_matrix.todense()
+#     num_errs = H.shape[1]
 
-    if error_inds is None:
-        error_inds = [f"e_{j}" for j in range(num_errs)]
-    noise_model = factorized_noise_model(error_inds, matrices.priors)
+#     if error_inds is None:
+#         error_inds = [f"e_{j}" for j in range(num_errs)]
+#     noise_model = factorized_noise_model(error_inds, matrices.priors)
 
-    return H, logicals, noise_model
+#     return H, logicals, noise_model
 
 
 @qec.decoder("tensor_network_decoder")
