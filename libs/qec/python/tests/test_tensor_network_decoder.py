@@ -15,19 +15,19 @@ import cudaq_qec as qec
 def make_simple_code():
     # [[1, 1, 0], [0, 1, 1]] parity check, 1 logical, depolarizing noise
     H = np.array([[1, 1, 0], [0, 1, 1]])
-    logicals = np.array([[1, 0, 1]])
+    logical = np.array([[1, 0, 1]])
     noise = [0.1, 0.2, 0.3]
-    return H, logicals, noise
+    return H, logical, noise
 
 
 def test_decoder_init_and_attributes():
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
     assert isinstance(decoder.code_tn, TensorNetwork)
-    assert isinstance(decoder.logicals_tn, TensorNetwork)
+    assert isinstance(decoder.logical_tn, TensorNetwork)
     assert isinstance(decoder.syndrome_tn, TensorNetwork)
     assert isinstance(decoder.full_tn, TensorNetwork)
     assert hasattr(decoder, "noise_model")
@@ -38,10 +38,10 @@ def test_decoder_init_and_attributes():
 
 
 def test_decoder_flip_syndromes():
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
     # Flip all to True
     new_syndromes = [True] * H.shape[0]
@@ -56,10 +56,10 @@ def test_decoder_flip_syndromes():
 
 
 def test_decoder_decode_single():
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
     syndrome = [False, True]
     res = decoder.decode(syndrome)
@@ -70,10 +70,10 @@ def test_decoder_decode_single():
 
 
 def test_decoder_decode_batch():
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
     batch = np.array([[False, True], [True, False], [False, False]])
     res = decoder.decode_batch(batch)
@@ -84,10 +84,10 @@ def test_decoder_decode_batch():
 
 
 def test_decoder_set_contractor_invalid():
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
     with pytest.raises(ValueError):
         decoder.set_contractor("not_a_contractor")
@@ -101,11 +101,11 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
 
     # Simple code setup
     H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
-    logicals = np.array([[1, 0, 1]], dtype=np.uint8)
+    logical = np.array([[1, 0, 1]], dtype=np.uint8)
     noise = [0.1, 0.2, 0.3]
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
 
     # optimize="auto" (opt_einsum)
@@ -139,10 +139,10 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     ("cutensornet", "float64", "cuda:0", True),
 ])
 def test_set_contractor_variants(contractor, dtype, device, expect_gpu):
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
     import torch
 
@@ -188,7 +188,7 @@ def test_set_contractor_variants(contractor, dtype, device, expect_gpu):
     ])
 def test_decoder_change_contractor(init_contractor, change_contractor,
                                    init_device, change_device, expect_gpu):
-    H, logicals, noise = make_simple_code()
+    H, logical, noise = make_simple_code()
     import torch
 
     if ("cuda" in init_device or expect_gpu or
@@ -198,7 +198,7 @@ def test_decoder_change_contractor(init_contractor, change_contractor,
     # Initialize decoder with initial contractor and device
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise,
                               contractor_name=init_contractor,
                               device=init_device)
@@ -232,13 +232,13 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     np.random.seed(42)
     n_checks = 5
     n_errors = 8
-    n_logicals = 1
+    n_logical = 1
     n_batch = 10
 
-    # Generate random binary parity check matrix and logicals
+    # Generate random binary parity check matrix and logical
     H = np.random.randint(0, 2, size=(n_checks, n_errors)).astype(np.float64)
-    logicals = np.random.randint(0, 2,
-                                 size=(n_logicals, n_errors)).astype(np.float64)
+    logical = np.random.randint(0, 2,
+                                 size=(n_logical, n_errors)).astype(np.float64)
     noise = np.random.uniform(0.01, 0.2, size=n_errors).tolist()
 
     import cudaq_qec as qec
@@ -260,7 +260,7 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
 
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
-                              logicals=logicals,
+                              logical_obs=logical,
                               noise_model=noise)
 
     # Generate a batch of random syndromes

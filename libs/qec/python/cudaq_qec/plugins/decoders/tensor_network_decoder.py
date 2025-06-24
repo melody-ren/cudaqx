@@ -155,27 +155,27 @@ def tensor_network_from_syndrome_batch(
 
 
 def tensor_network_from_logical_observable(
-    logicals: npt.NDArray[Any],
+    logical: npt.NDArray[Any],
     logical_inds: list[str],
     logical_obs_inds: list[str],
-    logicals_tags: Optional[list[str]] = None,
+    logical_tags: Optional[list[str]] = None,
 ) -> TensorNetwork:
     """Build a tensor network for logical observables.
 
     Args:
-        logicals (np.ndarray): The logicals matrix.
+        logical (np.ndarray): The logical matrix.
         logical_inds (list[str]): The logical indices.
         logical_obs_inds (list[str]): The logical observable indices.
-        logicals_tags (list[str], optional): The logicals tags.
+        logical_tags (list[str], optional): The logical tags.
 
     Returns:
         TensorNetwork: The tensor network for logical observables.
     """
     return tensor_network_from_parity_check(
-        np.eye(logicals.shape[0]),
+        np.eye(logical.shape[0]),
         row_inds=logical_inds,
         col_inds=logical_obs_inds,
-        tags=logicals_tags,
+        tags=logical_tags,
     )
 
 
@@ -319,7 +319,7 @@ class TensorNetworkDecoder:
                      |
         s1      s2   |     s3   < syndromes               : product state of zeros/ones
         |       |    |     |                        ----|
-        c1      c2  l1     c3   < checks / logicals     | : delta tensors
+        c1      c2  l1     c3   < checks / logical     | : delta tensors
         |     / |   | \    |                            |
         H   H   H   H  H   H    < Hadamard matrices     | TANNER (bipartite) GRAPH
           \ |   |  /   |  /                             |
@@ -333,15 +333,15 @@ class TensorNetworkDecoder:
 
     Attributes:
         code_tn (TensorNetwork): The tensor network for the code (parity check matrix).
-        logicals_tn (TensorNetwork): The tensor network for the logical observables.
+        logical_tn (TensorNetwork): The tensor network for the logical observables.
         syndrome_tn (TensorNetwork): The tensor network for the syndrome.
         noise_model (TensorNetwork): The noise model tensor network.
-        full_tn (TensorNetwork): The full tensor network including code, logicals, syndrome, and noise model.
+        full_tn (TensorNetwork): The full tensor network including code, logical, syndrome, and noise model.
         check_inds (list[str]): The check indices.
         error_inds (list[str]): The error indices.
         logical_inds (list[str]): The logical indices.
         logical_obs_inds (list[str]): The logical observable indices.
-        logicals_tags (list[str]): The logicals tags.
+        logical_tags (list[str]): The logical tags.
         _contractor_name (str): The contractor to use.
         _backend (str): The backend used for tensor operations ("numpy" or "torch").
         _dtype (str): The data type of the tensors.
@@ -352,7 +352,7 @@ class TensorNetworkDecoder:
         slicing_batch (Any): Slicing specification for batch contraction.
     """
     code_tn: TensorNetwork
-    logicals_tn: TensorNetwork
+    logical_tn: TensorNetwork
     syndrome_tn: TensorNetwork
     noise_model: TensorNetwork
     full_tn: TensorNetwork
@@ -360,7 +360,7 @@ class TensorNetworkDecoder:
     error_inds: list[str]
     logical_inds: list[str]
     logical_obs_inds: list[str]
-    logicals_tags: list[str]
+    logical_tags: list[str]
     _contractor_name: str
     _backend: str
     _dtype: str
@@ -373,12 +373,12 @@ class TensorNetworkDecoder:
     def __init__(
         self,
         H: npt.NDArray[Any],
-        logicals: npt.NDArray[Any],
+        logical_obs: npt.NDArray[Any],
         noise_model: Union[TensorNetwork, list[float]],
         check_inds: Optional[list[str]] = None,
         error_inds: Optional[list[str]] = None,
         logical_inds: Optional[list[str]] = None,
-        logicals_tags: Optional[list[str]] = None,
+        logical_tags: Optional[list[str]] = None,
         contract_noise_model: bool = True,
         contractor_name: Optional[str] = "numpy",
         dtype: str = "float64",
@@ -389,7 +389,7 @@ class TensorNetworkDecoder:
 
         Args:
             H (np.ndarray): The parity check matrix. First dimension is the number of checks, second is the number of errors.
-            logicals (np.ndarray): The logicals. First dimension is the number of logicals, second is the number of errors.
+            logical_obs (np.ndarray): The logical. First dimension is one, second is the number of errors.
             noise_model (Union[TensorNetwork, list[float]]): The noise model to use. Can be a tensor network or a list of probabilities.
                 If a tensor network, it must have exactly parity_check_matrix.shape[1] open indices.
                 The same ordering is assumed as in the parity check matrix.
@@ -398,7 +398,7 @@ class TensorNetworkDecoder:
             check_inds (Optional[list[str]], optional): The check indices. If None, defaults to [c_0, c_1, ...].
             error_inds (Optional[list[str]], optional): The error indices. If None, defaults to [e_0, e_1, ...].
             logical_inds (Optional[list[str]], optional): The logical indices. If None, defaults to [l_0, l_1, ...].
-            logicals_tags (Optional[list[str]], optional): The logicals tags. If None, defaults to [LOG_0, LOG_1, ...].
+            logical_tags (Optional[list[str]], optional): The logical tags. If None, defaults to [LOG_0, LOG_1, ...].
             contract_noise_model (bool, optional): Whether to contract the noise model with the tensor network at initialization.
             contractor_name (Optional[str], optional): The contractor to use. If None, defaults to "numpy".
             dtype (str, optional): The data type of the tensors in the tensor network. Defaults to "float64".
@@ -414,12 +414,6 @@ class TensorNetworkDecoder:
             self.check_inds = [f"s_{j}" for j in range(num_checks)]
         if error_inds is None:
             self.error_inds = [f"e_{j}" for j in range(num_errs)]
-        if logical_inds is None:
-            self.logical_inds = [f"l_{j}" for j in range(logicals.shape[0])]
-
-        if logicals_tags is None:
-            log_checks = logicals.shape[0]
-            self.logicals_tags = [f"LOG_{l}" for l in range(log_checks)]
 
         # Construct the tensor network of the code
         self.parity_check_matrix = H.copy()
@@ -429,27 +423,20 @@ class TensorNetworkDecoder:
             row_inds=self.check_inds,
         )
 
-        # Construct the tensor network of the logicals observables
-        self.logicals = logicals.copy()
-        self.logicals_tn = tensor_network_from_parity_check(
-            self.logicals,
-            col_inds=self.error_inds,
-            row_inds=self.logical_inds,
-            tags=self.logicals_tags,
+        self.replace_logical_observable(
+            logical_obs,
+            logical_inds=logical_inds,
+            logical_obs_inds=self.error_inds,
+            logical_tags=logical_tags,
         )
 
-        self.logical_obs_inds = [f"obs_{l}" for l in self.logical_inds]
-        # Add a Hadamard tensor for each logical observable for its outer leg
-        self.logicals_tn |= tensor_network_from_logical_observable(
-            self.logicals, self.logical_inds, self.logical_obs_inds,
-            self.logicals_tags)
-
+        # Initialize the syndrome tensor network with no errors, i.e. all True.
         self.syndrome_tn = tensor_network_from_single_syndrome(
             [True] * len(self.check_inds), self.check_inds)
 
-        # Construct the tensor network of code + logicals + syndromes
+        # Construct the tensor network of code + logical + syndromes
         # The noise model is added later
-        self.full_tn = self.code_tn | self.logicals_tn | self.syndrome_tn
+        self.full_tn = self.code_tn | self.logical_tn | self.syndrome_tn
 
         if contractor_name not in CONTRACTORS:
             raise ValueError(f"Contractor {contractor_name} not found. "
@@ -476,6 +463,46 @@ class TensorNetworkDecoder:
             from .tensor_network_utils.noise_models import factorized_noise_model
             noise_model = factorized_noise_model(self.error_inds, noise_model)
         self.init_noise_model(noise_model, contract=contract_noise_model)
+    
+    def replace_logical_observable(self,
+                              logical_obs: npt.NDArray[Any],
+                              logical_inds: Optional[list[str]] = None,
+                              logical_obs_inds: Optional[list[str]] = None,
+                              logical_tags: Optional[list[str]] = None) -> None:
+        """Add logical observables to the tensor network.
+        Args:
+            logical_obs (np.ndarray): The logical matrix.
+            logical_inds (Optional[list[str]], optional): The logical indices. If None, defaults to [l_0, l_1, ...].
+            logical_obs_inds (Optional[list[str]], optional): The logical observable indices. If None, defaults to [l_obs_0, l_obs_1, ...].
+            logical_tags (Optional[list[str]], optional): The logical tags. If None, defaults to [LOG_0, LOG_1, ...].
+        """
+        assert logical_obs.shape == (1, len(self.error_inds)), (
+            "logical must be a single row matrix, shape (1, n), where n is the number of errors."
+            "Only single logical are supported for now."
+        )
+        if logical_inds is None:
+            self.logical_inds = ["l_0"] # Index before the Hadamard tensor
+            self.logical_obs_inds = ["obs_0"] # Open logical index
+        if logical_tags is None:
+            self.logical_tags = ["LOG_0"]
+
+        # Construct the tensor network of the logical observables
+        self.logical_obs = logical_obs.copy()
+        self.logical_tn = tensor_network_from_parity_check(
+            self.logical_obs,
+            col_inds=self.error_inds,
+            row_inds=self.logical_inds,
+            tags=self.logical_tags,
+        )
+
+        # Add a Hadamard tensor for each logical observable for its outer leg
+        self.logical_tn |= tensor_network_from_logical_observable(
+            self.logical_obs, self.logical_inds, self.logical_obs_inds,
+            self.logical_tags)
+
+        if hasattr(self, "full_tn"):
+            self.full_tn = (self.code_tn | self.logical_tn |
+                            self.syndrome_tn | self.noise_model)
 
     def init_noise_model(self,
                          noise_model: TensorNetwork,
@@ -489,7 +516,7 @@ class TensorNetworkDecoder:
         self.noise_model = noise_model
         set_tensor_type(self.noise_model, self._backend, self._dtype,
                         self._device)
-        self.full_tn = (self.code_tn | self.logicals_tn | self.syndrome_tn |
+        self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                         self.noise_model)
 
         if contract:
@@ -577,16 +604,12 @@ class TensorNetworkDecoder:
     def decode(
         self,
         syndrome: list[bool],
-        logical_observable: Optional[str] = None,
-        return_probability: bool = False,
     ) -> "qec.DecoderResult":
         """
-        Decode the syndrome by contracting the full tensor network.
+        Decode the syndrome by contracting exactly the full tensor network.
 
         Args:
             syndrome (list[bool]): The syndrome ordered as the check indices.
-            logical_observable (Optional[str], optional): The index of the logical observable to use.
-            return_probability (bool, optional): Whether to return the flip probability.
 
         Returns:
             qec.DecoderResult: The result of the decoding.
@@ -599,18 +622,8 @@ class TensorNetworkDecoder:
         # adjust the values of the syndromes
         self.flip_syndromes(syndrome)
 
-        if len(self.logical_obs_inds) > 1 and logical_observable is None:
-            raise ValueError(
-                "This `TensorNetworkDecoder` contains more than one logical observable."
-                "Please specify which one to use by setting the `logical_observable` argument"
-                "to `TensorNetwork.decode(syndrome, logical_observable=...)."
-                "The available logical observables are: " +
-                str(self.logical_obs_inds))
-        elif len(self.logical_obs_inds) == 1:
-            logical_observable = self.logical_obs_inds[0]
-
         contraction_value = CONTRACTORS[self._contractor_name](
-            self.full_tn.get_equation(output_inds=(logical_observable,)),
+            self.full_tn.get_equation(output_inds=(self.logical_obs_inds[0],)),
             self.full_tn.arrays,
             optimize=self.path_single,
             slicing=self.slicing_single,
@@ -627,15 +640,11 @@ class TensorNetworkDecoder:
     def decode_batch(
         self,
         syndrome_batch: npt.NDArray[Any],
-        logical_observable: Optional[str] = None,
-        return_probability: bool = False,
     ) -> list["qec.DecoderResult"]:
         """Decode a batch of detection events.
 
         Args:
             syndrome_batch (np.ndarray): A numpy array of shape (batch_size, syndrome_length) where each row is a detection event.
-            logical_observable (str, optional): The index of the logical observable to use. If not specified,
-                there must be only one logical observable.
 
         Returns:
             list[qec.DecoderResult]: list of results for each detection event in the batch.
@@ -644,16 +653,6 @@ class TensorNetworkDecoder:
         assert hasattr(self, "noise_model")
         syndrome_length = syndrome_batch.shape[1]
         assert syndrome_length == len(self.check_inds)
-
-        if len(self.logical_obs_inds) > 1 and logical_observable is None:
-            raise ValueError(
-                "This tensor network contains more than one logical observable."
-                "Please specify which one to use by setting the `logical_observable` argument"
-                "to TensorNetwork.decode(syndrome, logical_observable=...)."
-                "The available logical observables are: " +
-                str(self.logical_obs_inds))
-        elif len(self.logical_obs_inds) == 1:
-            logical_observable = self.logical_obs_inds[0]
 
         # Remove the syndrome tensors from the full tensor network
         tn = TensorNetwork(
@@ -665,7 +664,7 @@ class TensorNetworkDecoder:
         set_tensor_type(tn, self._backend, self._dtype, self._device)
 
         contraction_value = CONTRACTORS[self._contractor_name](
-            tn.get_equation(output_inds=("batch_index", logical_observable)),
+            tn.get_equation(output_inds=("batch_index", self.logical_obs_inds[0])),
             tn.arrays,
             optimize=self.path_batch,
             slicing=self.slicing_batch,

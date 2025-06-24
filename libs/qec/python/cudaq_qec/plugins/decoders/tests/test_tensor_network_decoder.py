@@ -122,7 +122,7 @@ def test_tensor_network_from_logical_observable():
     obs_inds = ['o0']
     tn = tensor_network_from_logical_observable(obs,
                                                 obs_inds, ["l0"],
-                                                logicals_tags=["OBS_0"])
+                                                logical_tags=["OBS_0"])
     assert len(tn.tensors) == obs.shape[0]
     for i, t in enumerate(tn.tensors):
         expected = np.array([[1.0, 1.0], [1.0, -1.0]])
