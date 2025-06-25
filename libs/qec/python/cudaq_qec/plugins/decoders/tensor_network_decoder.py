@@ -414,8 +414,8 @@ class TensorNetworkDecoder:
             self.check_inds = [f"s_{j}" for j in range(num_checks)]
         if error_inds is None:
             self.error_inds = [f"e_{j}" for j in range(num_errs)]
-        
-        self.logical_obs_inds = ["obs"] # Open logical index
+
+        self.logical_obs_inds = ["obs"]  # Open logical index
 
         # Construct the tensor network of the code
         self.parity_check_matrix = H.copy()
@@ -464,11 +464,12 @@ class TensorNetworkDecoder:
             from .tensor_network_utils.noise_models import factorized_noise_model
             noise_model = factorized_noise_model(self.error_inds, noise_model)
         self.init_noise_model(noise_model, contract=contract_noise_model)
-    
-    def replace_logical_observable(self,
-                              logical_obs: npt.NDArray[Any],
-                              logical_inds: Optional[list[str]] = None,
-                              logical_tags: Optional[list[str]] = None) -> None:
+
+    def replace_logical_observable(
+            self,
+            logical_obs: npt.NDArray[Any],
+            logical_inds: Optional[list[str]] = None,
+            logical_tags: Optional[list[str]] = None) -> None:
         """Add logical observables to the tensor network.
         Args:
             logical_obs (np.ndarray): The logical matrix.
@@ -478,10 +479,9 @@ class TensorNetworkDecoder:
         """
         assert logical_obs.shape == (1, len(self.error_inds)), (
             "logical must be a single row matrix, shape (1, n), where n is the number of errors."
-            "Only single logical are supported for now."
-        )
+            "Only single logical are supported for now.")
         if logical_inds is None:
-            self.logical_inds = ["l_0"] # Index before the Hadamard tensor
+            self.logical_inds = ["l_0"]  # Index before the Hadamard tensor
         else:
             self.logical_inds = logical_inds
 
@@ -505,8 +505,8 @@ class TensorNetworkDecoder:
             self.logical_tags)
 
         if hasattr(self, "full_tn"):
-            self.full_tn = (self.code_tn | self.logical_tn |
-                            self.syndrome_tn | self.noise_model)
+            self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
+                            self.noise_model)
 
     def init_noise_model(self,
                          noise_model: TensorNetwork,
@@ -668,7 +668,8 @@ class TensorNetworkDecoder:
         set_tensor_type(tn, self._backend, self._dtype, self._device)
 
         contraction_value = CONTRACTORS[self._contractor_name](
-            tn.get_equation(output_inds=("batch_index", self.logical_obs_inds[0])),
+            tn.get_equation(output_inds=("batch_index",
+                                         self.logical_obs_inds[0])),
             tn.arrays,
             optimize=self.path_batch,
             slicing=self.slicing_batch,

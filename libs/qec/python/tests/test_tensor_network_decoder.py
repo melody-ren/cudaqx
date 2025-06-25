@@ -36,6 +36,7 @@ def test_decoder_init_and_attributes():
     assert decoder._device == "cpu"
     assert decoder._dtype == "float64"
 
+
 def test_decoder_replace_logical_observable():
     H, logical, noise = make_simple_code()
     import cudaq_qec as qec
@@ -50,16 +51,15 @@ def test_decoder_replace_logical_observable():
     new_logical_inds = ["l_1"]
     new_logical_tags = ["LOG_1"]
 
-    decoder.replace_logical_observable(
-        logical_obs=new_logical,
-        logical_inds=new_logical_inds,
-        logical_tags=new_logical_tags
-    )
+    decoder.replace_logical_observable(logical_obs=new_logical,
+                                       logical_inds=new_logical_inds,
+                                       logical_tags=new_logical_tags)
 
     # Check that the logical observable and indices are updated
     assert np.array_equal(decoder.logical_obs, new_logical)
     assert decoder.logical_inds == new_logical_inds
     assert decoder.logical_tags == new_logical_tags
+
 
 def test_decoder_replace_logical_observable_shape_error():
     H, logical, noise = make_simple_code()
@@ -81,8 +81,7 @@ def test_decoder_replace_logical_observable_shape_error():
             logical_obs=new_logical,
             logical_inds=new_logical_inds,
             logical_obs_inds=new_logical_obs_inds,
-            logical_tags=new_logical_tags
-        )
+            logical_tags=new_logical_tags)
 
 
 def test_decoder_flip_syndromes():
@@ -286,7 +285,7 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     # Generate random binary parity check matrix and logical
     H = np.random.randint(0, 2, size=(n_checks, n_errors)).astype(np.float64)
     logical = np.random.randint(0, 2,
-                                 size=(n_logical, n_errors)).astype(np.float64)
+                                size=(n_logical, n_errors)).astype(np.float64)
     noise = np.random.uniform(0.01, 0.2, size=n_errors).tolist()
 
     import cudaq_qec as qec
