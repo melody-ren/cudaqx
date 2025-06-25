@@ -46,7 +46,7 @@ def tensor_network_from_parity_check(
         |   |  /    |
         c1  c2      c3      < column indices (stored lazily)
 
-    This function can be used to the tensor network of the code and the tensor network of
+    This function can be used to create the tensor network of the code and the tensor network of
     the logical observables.
 
     Args:
