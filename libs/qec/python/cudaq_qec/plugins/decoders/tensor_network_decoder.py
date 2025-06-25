@@ -397,7 +397,7 @@ class TensorNetworkDecoder:
                 A product state noise model will be constructed from it.
             check_inds (Optional[list[str]], optional): The check indices. If None, defaults to [c_0, c_1, ...].
             error_inds (Optional[list[str]], optional): The error indices. If None, defaults to [e_0, e_1, ...].
-            logical_inds (Optional[list[str]], optional): The logical indices. If None, defaults to [l_0, l_1, ...].
+            logical_inds (Optional[list[str]], optional): The index of the logical. If None, defaults to [l_0].
             logical_tags (Optional[list[str]], optional): The logical tags. If None, defaults to [LOG_0, LOG_1, ...].
             contract_noise_model (bool, optional): Whether to contract the noise model with the tensor network at initialization.
             contractor_name (Optional[str], optional): The contractor to use. If None, defaults to "numpy".
@@ -414,6 +414,8 @@ class TensorNetworkDecoder:
             self.check_inds = [f"s_{j}" for j in range(num_checks)]
         if error_inds is None:
             self.error_inds = [f"e_{j}" for j in range(num_errs)]
+        
+        self.logical_obs_inds = ["obs"] # Open logical index
 
         # Construct the tensor network of the code
         self.parity_check_matrix = H.copy()
@@ -426,7 +428,6 @@ class TensorNetworkDecoder:
         self.replace_logical_observable(
             logical_obs,
             logical_inds=logical_inds,
-            logical_obs_inds=self.error_inds,
             logical_tags=logical_tags,
         )
 
@@ -467,7 +468,6 @@ class TensorNetworkDecoder:
     def replace_logical_observable(self,
                               logical_obs: npt.NDArray[Any],
                               logical_inds: Optional[list[str]] = None,
-                              logical_obs_inds: Optional[list[str]] = None,
                               logical_tags: Optional[list[str]] = None) -> None:
         """Add logical observables to the tensor network.
         Args:
@@ -482,9 +482,13 @@ class TensorNetworkDecoder:
         )
         if logical_inds is None:
             self.logical_inds = ["l_0"] # Index before the Hadamard tensor
-            self.logical_obs_inds = ["obs_0"] # Open logical index
+        else:
+            self.logical_inds = logical_inds
+
         if logical_tags is None:
             self.logical_tags = ["LOG_0"]
+        else:
+            self.logical_tags = logical_tags
 
         # Construct the tensor network of the logical observables
         self.logical_obs = logical_obs.copy()

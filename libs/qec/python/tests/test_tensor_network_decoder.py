@@ -36,6 +36,54 @@ def test_decoder_init_and_attributes():
     assert decoder._device == "cpu"
     assert decoder._dtype == "float64"
 
+def test_decoder_replace_logical_observable():
+    H, logical, noise = make_simple_code()
+    import cudaq_qec as qec
+
+    decoder = qec.get_decoder("tensor_network_decoder",
+                              H,
+                              logical_obs=logical,
+                              noise_model=noise)
+
+    # New logical observable and indices
+    new_logical = np.array([[0, 1, 1]])
+    new_logical_inds = ["l_1"]
+    new_logical_tags = ["LOG_1"]
+
+    decoder.replace_logical_observable(
+        logical_obs=new_logical,
+        logical_inds=new_logical_inds,
+        logical_tags=new_logical_tags
+    )
+
+    # Check that the logical observable and indices are updated
+    assert np.array_equal(decoder.logical_obs, new_logical)
+    assert decoder.logical_inds == new_logical_inds
+    assert decoder.logical_tags == new_logical_tags
+
+def test_decoder_replace_logical_observable_shape_error():
+    H, logical, noise = make_simple_code()
+    import cudaq_qec as qec
+
+    decoder = qec.get_decoder("tensor_network_decoder",
+                              H,
+                              logical_obs=logical,
+                              noise_model=noise)
+
+    # new_logical with wrong shape: first dimension != 1
+    new_logical = np.array([[0, 1, 1], [1, 0, 0]])  # shape (2, 3)
+    new_logical_inds = ["l_1"]
+    new_logical_obs_inds = ["e_0", "e_1", "e_2"]
+    new_logical_tags = ["LOG_1"]
+
+    with pytest.raises(Exception):
+        decoder.replace_logical_observable(
+            logical_obs=new_logical,
+            logical_inds=new_logical_inds,
+            logical_obs_inds=new_logical_obs_inds,
+            logical_tags=new_logical_tags
+        )
+
 
 def test_decoder_flip_syndromes():
     H, logical, noise = make_simple_code()
