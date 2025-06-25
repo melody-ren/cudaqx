@@ -5,7 +5,7 @@
 # This source code and the accompanying materials are made available under     #
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Union
 import numpy as np
 from quimb import oset
 from quimb.tensor import TensorNetwork, Tensor
@@ -43,14 +43,14 @@ def factorized_noise_model(
 
 
 def error_pairs_noise_model(
-        error_index_pairs: list[Tuple[str, str]],
+        error_index_pairs: list[tuple[str, str]],
         error_probabilities: list[np.ndarray],
         tensors_tags: Optional[list[str]] = None) -> TensorNetwork:
     """
     Construct a noise model as a tensor network for correlated error pairs.
 
     Args:
-        error_index_pairs (list[Tuple[str, str]]): list of pairs of error index names.
+        error_index_pairs (list[tuple[str, str]]): list of pairs of error index names.
         error_probabilities (list[np.ndarray]): list of 2x2 probability matrices for each error pair.
         tensors_tags (Optional[list[str]], optional): list of tags for each tensor. If None, default tags are used.
 

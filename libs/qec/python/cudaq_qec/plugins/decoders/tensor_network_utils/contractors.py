@@ -6,7 +6,7 @@
 # the terms of the Apache License 2.0 which accompanies this distribution.     #
 # ============================================================================ #
 
-from typing import Any, Callable, Dict, Tuple, Optional
+from typing import Any, Callable, Dict, Optional
 import opt_einsum as oe
 import torch
 from cuquantum import tensornet as cutn
@@ -17,7 +17,7 @@ def einsum_torch(
     subscripts: str,
     tensors: list[torch.Tensor],
     optimize: str = "auto",
-    slicing: Tuple = tuple()) -> torch.Tensor:
+    slicing: tuple = tuple()) -> torch.Tensor:
     """
     Perform einsum contraction using torch.
 
@@ -25,7 +25,7 @@ def einsum_torch(
         subscripts (str): The einsum subscripts.
         tensors (list[torch.Tensor]): list of torch tensors to contract.
         optimize (str, optional): Optimization strategy. Defaults to "auto".
-        slicing (Tuple, optional): Slicing specification. Defaults to empty tuple.
+        slicing (tuple, optional): Slicing specification. Defaults to empty tuple.
 
     Returns:
         torch.Tensor: The contracted tensor.
@@ -39,7 +39,7 @@ torch_compiled_contractor = torch.compile(einsum_torch)
 def contractor(subscripts: str,
                tensors: list[Any],
                optimize: str = "auto",
-               slicing: Tuple = tuple()) -> Any:
+               slicing: tuple = tuple()) -> Any:
     """
     Perform einsum contraction using opt_einsum.
 
@@ -47,7 +47,7 @@ def contractor(subscripts: str,
         subscripts (str): The einsum subscripts.
         tensors (list[Any]): list of tensors to contract.
         optimize (str, optional): Optimization strategy. Defaults to "auto".
-        slicing (Tuple, optional): Slicing specification. Defaults to empty tuple.
+        slicing (tuple, optional): Slicing specification. Defaults to empty tuple.
 
     Returns:
         Any: The contracted tensor.
@@ -62,7 +62,7 @@ def cutn_contractor(
     subscripts: str,
     tensors: list[Any],
     optimize: Optional[Any] = None,
-    slicing: Tuple = tuple()) -> Any:
+    slicing: tuple = tuple()) -> Any:
     """
     Perform contraction using cuQuantum's tensornet contractor.
 
@@ -70,7 +70,7 @@ def cutn_contractor(
         subscripts (str): The einsum subscripts.
         tensors (list[Any]): list of tensors to contract.
         optimize (Optional[Any], optional): cuQuantum optimizer options or path. Defaults to None.
-        slicing (Tuple, optional): Slicing specification. Defaults to empty tuple.
+        slicing (tuple, optional): Slicing specification. Defaults to empty tuple.
 
     Returns:
         Any: The contracted tensor.
@@ -94,18 +94,18 @@ CONTRACTORS: Dict[str, Callable] = {
 }
 
 
-def optimize_path(optimize: Any, output_inds: Tuple[str, ...],
-                  tn: TensorNetwork) -> Tuple[Any, Any]:
+def optimize_path(optimize: Any, output_inds: tuple[str, ...],
+                  tn: TensorNetwork) -> tuple[Any, Any]:
     """
     Optimize the contraction path for a tensor network.
 
     Args:
         optimize (Any): Optimization strategy or cuQuantum optimizer options.
-        output_inds (Tuple[str, ...]): Output indices for the contraction.
+        output_inds (tuple[str, ...]): Output indices for the contraction.
         tn (TensorNetwork): The tensor network.
 
     Returns:
-        Tuple[Any, Any]: The contraction path and optimizer info.
+        tuple[Any, Any]: The contraction path and optimizer info.
     """
     if isinstance(optimize, cutn.OptimizerOptions) or optimize is None:
         path, info = cutn.contract_path(
