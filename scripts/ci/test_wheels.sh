@@ -42,8 +42,6 @@ fi
 # ======================================
 echo "Checking GPU info with nvidia-smi:"
 nvidia-smi
-echo "Checking CUDA version:"
-nvcc --version
 
 ${python} -m pip install quimb opt_einsum
 if [ "$platform" = "amd64" ]; then
