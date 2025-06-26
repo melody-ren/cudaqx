@@ -159,6 +159,7 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
     from cuquantum.tensornet.configuration import OptimizerInfo
+    import torch
 
     # Simple code setup
     H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
@@ -174,6 +175,9 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     assert isinstance(decoder.path_single, (list, tuple))
     assert decoder.slicing_single is not None
     assert isinstance(info, PathInfo)
+
+    if not torch.cuda.is_available():
+        pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # optimize=cuQuantum OptimizerOptions
     opt = cutn.OptimizerOptions()

@@ -411,7 +411,7 @@ class TensorNetworkDecoder:
 
         qec.Decoder.__init__(self, H)
 
-        if not torch.cuda.is_available():
+        if not torch.cuda.is_available() and contractor_name == "cutensornet":
             print("Warning: Torch CUDA is not available. "
                   "Using CPU for tensor network operations.")
             contractor_name = "numpy"
