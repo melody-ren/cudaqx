@@ -312,6 +312,7 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
 
     # Generate a batch of random syndromes
     batch = np.random.choice([False, True], size=(n_batch, n_checks))
+    batch = batch.astype(np.float64, copy=False)  # Ensure float64 dtype
 
     for contractor, dtype, device in contractors:
         if "cuda" in device and not torch.cuda.is_available():
@@ -351,6 +352,13 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
                                    batch_results,
                                    rtol=rtol,
                                    atol=atol)
+
+        # Compare single and batch results
+        np.testing.assert_allclose(single_results,
+                                   expected_cast,
+                                   rtol=rtol,
+                                   atol=atol)
+
         # Compare to expected results
         np.testing.assert_allclose(batch_results,
                                    expected_cast,

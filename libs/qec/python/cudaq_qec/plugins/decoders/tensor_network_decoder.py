@@ -73,12 +73,12 @@ def tensor_network_from_parity_check(
     ])
 
 
-def tensor_network_from_single_syndrome(syndrome: list[bool],
+def tensor_network_from_single_syndrome(syndrome: list[float],
                                         check_inds: list[str]) -> TensorNetwork:
     """Initialize the syndrome tensor network.
 
     Args:
-        syndrome (list[bool]): The syndrome values.
+        syndrome (list[float]): The syndrome values.
         check_inds (list[str]): The indices of the checks.
 
     Returns:
@@ -89,7 +89,7 @@ def tensor_network_from_single_syndrome(syndrome: list[bool],
 
     return TensorNetwork([
         Tensor(
-            data=minus if bool(syndrome[i]) else plus,
+            data=syndrome[i] * minus + (1.0 - syndrome[i]) * plus,
             inds=(check_inds[i],),
             tags=oset([f"SYN_{i}", "SYNDROME"]),
         ) for i in range(len(check_inds))
@@ -143,12 +143,13 @@ def tensor_network_from_syndrome_batch(
     if tags is None:
         tags = [f"SYN_{i}" for i in range(syndrome_length)]
 
-    syndrome_arrays = prepare_syndrome_data_batch(detection_events)
+    minus = np.outer(np.array([1.0, -1.0]), np.ones(shots))
+    plus = np.outer(np.array([1.0, 1.0]), np.ones(shots))
 
     return TensorNetwork([
         Tensor(
-            data=syndrome_arrays[i],
-            inds=(batch_index, syndrome_inds[i]),
+            data=minus * detection_events[:, i] + plus * (1.0 - detection_events[:, i]),
+            inds=(syndrome_inds[i], batch_index),
             tags=oset((tags[i], "SYNDROME")),
         ) for i in range(syndrome_length)
     ])
@@ -431,9 +432,9 @@ class TensorNetworkDecoder:
             logical_tags=logical_tags,
         )
 
-        # Initialize the syndrome tensor network with no errors, i.e. all True.
+        # Initialize the syndrome tensor network with no errors.
         self.syndrome_tn = tensor_network_from_single_syndrome(
-            [True] * len(self.check_inds), self.check_inds)
+            [0.0] * len(self.check_inds), self.check_inds)
 
         # Construct the tensor network of code + logical + syndromes
         # The noise model is added later
@@ -527,11 +528,12 @@ class TensorNetworkDecoder:
             for ie in self.error_inds:
                 self.full_tn.contract_ind(ie)
 
-    def flip_syndromes(self, values: list[bool]) -> None:
+    def flip_syndromes(self, values: list[float]) -> None:
         """Modify the tensor network in place to represent a given syndrome.
 
         Args:
-            values (list): A list of binary values for the check operators.
+            values (list): A list of float values for the syndrome.
+                The probability an observable was flipped.
         """
 
         # Below we use autoray.do to ensure that the data is
@@ -550,12 +552,18 @@ class TensorNetworkDecoder:
         for ind in range(len(self.check_inds)):
             t = self.syndrome_tn.tensors[next(
                 iter(self.syndrome_tn.tag_map[f"SYN_{ind}"]))]
-            # if s is False, the tensor is the plus state (1, 1): |+> = Hadamard @ |0>
-            # If s is True, the tensor is the minus state (1, -1): |-> = Hadamard @ |1>
-            if bool(values[ind]) and t.data[1] != -1:
-                t.modify(data=minus)
-            elif not bool(values[ind]) and t.data[1] != 1:
-                t.modify(data=plus)
+            t.modify(
+                data=values[ind] * minus +
+                (1.0 - values[ind]) * plus,
+            )
+
+
+            # # if s is False, the tensor is the plus state (1, 1): |+> = Hadamard @ |0>
+            # # If s is True, the tensor is the minus state (1, -1): |-> = Hadamard @ |1>
+            # if bool(values[ind]) and t.data[1] != -1:
+            #     t.modify(data=minus)
+            # elif not bool(values[ind]) and t.data[1] != 1:
+            #     t.modify(data=plus)
 
     def set_contractor(self,
                        contractor: str,
@@ -607,13 +615,14 @@ class TensorNetworkDecoder:
 
     def decode(
         self,
-        syndrome: list[bool],
+        syndrome: list[float],
     ) -> "qec.DecoderResult":
         """
         Decode the syndrome by contracting exactly the full tensor network.
 
         Args:
-            syndrome (list[bool]): The syndrome ordered as the check indices.
+            syndrome (list[float]): 
+                The syndrome soft decision probabilities ordered as the check indices.
 
         Returns:
             qec.DecoderResult: The result of the decoding.
