@@ -412,12 +412,10 @@ class TensorNetworkDecoder:
         qec.Decoder.__init__(self, H)
 
         if not torch.cuda.is_available():
-            print(
-                "Warning: Torch CUDA is not available. "
-                "Using CPU for tensor network operations.")
+            print("Warning: Torch CUDA is not available. "
+                  "Using CPU for tensor network operations.")
             contractor_name = "numpy"
             device = "cpu"
-
 
         num_checks, num_errs = H.shape
         if check_inds is None:
