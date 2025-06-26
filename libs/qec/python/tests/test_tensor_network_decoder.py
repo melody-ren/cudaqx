@@ -100,13 +100,13 @@ def test_decoder_flip_syndromes():
                               contractor_name="numpy",
                               dtype="float64",
                               device="cpu")
-    # Flip all to True
-    new_syndromes = [True] * H.shape[0]
+
+    new_syndromes = [1.0] * H.shape[0]
     decoder.flip_syndromes(new_syndromes)
     for i, t in enumerate(decoder.syndrome_tn.tensors):
         np.testing.assert_array_equal(t.data, np.array([1.0, -1.0]))
-    # Flip all to False
-    new_syndromes = [False] * H.shape[0]
+
+    new_syndromes = [0.0] * H.shape[0]
     decoder.flip_syndromes(new_syndromes)
     for i, t in enumerate(decoder.syndrome_tn.tensors):
         np.testing.assert_array_equal(t.data, np.array([1.0, 1.0]))
@@ -118,7 +118,7 @@ def test_decoder_decode_single():
                               H,
                               logical_obs=logical,
                               noise_model=noise)
-    syndrome = [False, True]
+    syndrome = [1.0, 0.0]
     res = decoder.decode(syndrome)
     assert hasattr(res, "converged")
     assert hasattr(res, "result")
@@ -131,9 +131,13 @@ def test_decoder_decode_batch():
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
                               logical_obs=logical,
-                              noise_model=noise)
-    batch = np.array([[False, True], [True, False], [False, False]])
+                              noise_model=noise,
+                              contractor_name="numpy",
+                              dtype="float64",
+                              device="cpu")
+    batch = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
     res = decoder.decode_batch(batch)
+    print([r.result for r in res])
     assert isinstance(res, list)
     assert all(hasattr(r, "converged") and hasattr(r, "result") for r in res)
     assert all(
@@ -155,6 +159,7 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
     from cuquantum.tensornet.configuration import OptimizerInfo
+    import torch
 
     # Simple code setup
     H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
@@ -170,6 +175,9 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     assert isinstance(decoder.path_single, (list, tuple))
     assert decoder.slicing_single is not None
     assert isinstance(info, PathInfo)
+
+    if not torch.cuda.is_available():
+        pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # optimize=cuQuantum OptimizerOptions
     opt = cutn.OptimizerOptions()

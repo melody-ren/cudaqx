@@ -55,6 +55,7 @@ def test_optimize_path_numpy_variants():
     from quimb.tensor import TensorNetwork, Tensor
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
+    import torch
 
     tn = TensorNetwork([
         Tensor(np.ones((2, 2)), inds=("a", "b")),
@@ -66,6 +67,9 @@ def test_optimize_path_numpy_variants():
     path, info = optimize_path("auto", output_inds=("a",), tn=tn)
     assert isinstance(path, (list, tuple))
     assert isinstance(info, PathInfo)
+
+    if not torch.cuda.is_available():
+        pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # Case 2: optimize=None (should use cuQuantum path finder)
     path2, info2 = optimize_path(None, output_inds=("a",), tn=tn)

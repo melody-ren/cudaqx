@@ -54,20 +54,20 @@ def test_tensor_network_from_parity_check_empty():
     assert len(tn.tensors) == 0
 
 
-def test_tensor_network_from_single_syndrome_all_false():
-    syndrome = [False, False, False]
+def test_tensor_network_from_single_syndrome_all_flipped():
+    syndrome = [1.0, 1.0, 1.0]
     check_inds = ['c0', 'c1', 'c2']
     tn = tensor_network_from_single_syndrome(syndrome, check_inds)
     assert len(tn.tensors) == 3
     for i, t in enumerate(tn.tensors):
-        np.testing.assert_array_equal(t.data, np.array([1.0, 1.0]))
+        np.testing.assert_array_equal(t.data, np.array([1.0, -1.0]))
         assert t.inds == (check_inds[i],)
         assert f"SYN_{i}" in t.tags
         assert "SYNDROME" in t.tags
 
 
 def test_tensor_network_from_single_syndrome_mixed():
-    syndrome = [True, False, True]
+    syndrome = [0.0, 1.0, 0.0]
     check_inds = ['a', 'b', 'c']
     tn = tensor_network_from_single_syndrome(syndrome, check_inds)
     assert len(tn.tensors) == 3
@@ -82,7 +82,7 @@ def test_tensor_network_from_single_syndrome_mixed():
 
 def test_prepare_syndrome_data_batch_shape_and_values_randomized():
     np.random.seed(123)
-    data = np.random.choice([False, True],
+    data = np.random.choice([1.0, 0.0],
                             size=(4, 5))  # syndrome length 4, 5 syndromes
     arr = prepare_syndrome_data_batch(data)
     assert arr.shape == (5, 4, 2)
@@ -97,7 +97,7 @@ def test_tensor_network_from_syndrome_batch_tags_and_inds_randomized():
     np.random.seed(42)
     batch_size = 5
     n_synd = 4
-    detection_events = np.random.choice([False, True],
+    detection_events = np.random.choice([1.0, 0.0],
                                         size=(batch_size, n_synd))
     detection_events = detection_events.astype(np.float32,
                                                copy=False)  # Ensure int8 type
@@ -120,7 +120,7 @@ def test_tensor_network_from_syndrome_batch_tags_and_inds_randomized():
 
 
 def test_tensor_network_from_logical_observable():
-    obs = np.array([[True, False, True]])
+    obs = np.array([[0.0, 1.0, 0.0]])
     obs_inds = ['o0']
     tn = tensor_network_from_logical_observable(obs,
                                                 obs_inds, ["l0"],

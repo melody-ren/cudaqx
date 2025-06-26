@@ -411,7 +411,7 @@ class TensorNetworkDecoder:
 
         qec.Decoder.__init__(self, H)
 
-        if not torch.cuda.is_available():
+        if not torch.cuda.is_available() and contractor_name == "cutensornet":
             print("Warning: Torch CUDA is not available. "
                   "Using CPU for tensor network operations.")
             contractor_name = "numpy"
@@ -635,7 +635,7 @@ class TensorNetworkDecoder:
             # If the path is not set, we need to optimize it
             self.optimize_path(
                 output_inds=(self.logical_obs_inds[0],),
-                optimize=None,
+                optimize=self.path_single,
             )
 
         contraction_value = CONTRACTORS[self._contractor_name](
@@ -684,7 +684,7 @@ class TensorNetworkDecoder:
             # If the path is not set, we need to optimize it
             self.optimize_path(
                 output_inds=("batch_index", self.logical_obs_inds[0]),
-                optimize=None,
+                optimize=self.path_batch,
                 syndrome_batch=syndrome_batch,
             )
             self._batch_size = syndrome_batch.shape[0]
