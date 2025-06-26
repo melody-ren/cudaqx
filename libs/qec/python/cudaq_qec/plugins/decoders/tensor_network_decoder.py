@@ -383,8 +383,8 @@ class TensorNetworkDecoder:
         logical_tags: Optional[list[str]] = None,
         contract_noise_model: bool = True,
         contractor_name: Optional[str] = "cutensornet",
-        dtype: str = "float64",
-        device: str = "cpu",
+        dtype: str = "float32",
+        device: str = "cuda:0",
     ) -> None:
         """Initialize a sparse representation of a tensor network decoder for an arbitrary code
         given by its parity check matrix, logical observables and noise model.
@@ -636,7 +636,6 @@ class TensorNetworkDecoder:
             self.optimize_path(
                 output_inds=(self.logical_obs_inds[0],),
                 optimize=None,
-                syndrome_batch=syndrome_batch,
             )
 
         contraction_value = CONTRACTORS[self._contractor_name](

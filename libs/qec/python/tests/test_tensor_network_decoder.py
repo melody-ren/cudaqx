@@ -31,10 +31,17 @@ def test_decoder_init_and_attributes():
     assert isinstance(decoder.syndrome_tn, TensorNetwork)
     assert isinstance(decoder.full_tn, TensorNetwork)
     assert hasattr(decoder, "noise_model")
-    assert decoder._contractor_name == "numpy"
-    assert decoder._backend == "numpy"
-    assert decoder._device == "cpu"
-    assert decoder._dtype == "float64"
+
+    import torch
+    if torch.cuda.is_available():
+        assert decoder._contractor_name == "cutensornet"
+        assert decoder._backend == "torch"
+        assert decoder._device == "cuda:0"
+    else:
+        assert decoder._contractor_name == "numpy"
+        assert decoder._backend == "numpy"
+        assert decoder._device == "cpu"
+    assert decoder._dtype == "float32"
 
 
 def test_decoder_replace_logical_observable():
@@ -89,7 +96,10 @@ def test_decoder_flip_syndromes():
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
                               logical_obs=logical,
-                              noise_model=noise)
+                              noise_model=noise,
+                              contractor_name="numpy",
+                              dtype="float64",
+                              device="cpu")
     # Flip all to True
     new_syndromes = [True] * H.shape[0]
     decoder.flip_syndromes(new_syndromes)
