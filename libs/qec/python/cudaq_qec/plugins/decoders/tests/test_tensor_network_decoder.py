@@ -97,8 +97,7 @@ def test_tensor_network_from_syndrome_batch_tags_and_inds_randomized():
     np.random.seed(42)
     batch_size = 5
     n_synd = 4
-    detection_events = np.random.choice([1.0, 0.0],
-                                        size=(batch_size, n_synd))
+    detection_events = np.random.choice([1.0, 0.0], size=(batch_size, n_synd))
     detection_events = detection_events.astype(np.float32,
                                                copy=False)  # Ensure int8 type
     syndrome_inds = [f's{i}' for i in range(n_synd)]
