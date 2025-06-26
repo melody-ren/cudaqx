@@ -99,7 +99,8 @@ def test_tensor_network_from_syndrome_batch_tags_and_inds_randomized():
     n_synd = 4
     detection_events = np.random.choice([False, True],
                                         size=(batch_size, n_synd))
-    detection_events = detection_events.astype(np.float32, copy=False)  # Ensure int8 type
+    detection_events = detection_events.astype(np.float32,
+                                               copy=False)  # Ensure int8 type
     syndrome_inds = [f's{i}' for i in range(n_synd)]
     tags = [f'tag{i}' for i in range(n_synd)]
     tn = tensor_network_from_syndrome_batch(detection_events,
@@ -115,7 +116,7 @@ def test_tensor_network_from_syndrome_batch_tags_and_inds_randomized():
         for b in range(batch_size):
             expected = detection_events[b, i] * np.array([1.0, -1.0])
             expected += (1 - detection_events[b, i]) * np.array([1.0, 1.0])
-            np.testing.assert_array_equal(t.data[:,b], expected)
+            np.testing.assert_array_equal(t.data[:, b], expected)
 
 
 def test_tensor_network_from_logical_observable():
