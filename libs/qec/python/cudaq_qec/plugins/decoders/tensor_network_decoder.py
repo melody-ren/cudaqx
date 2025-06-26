@@ -702,7 +702,10 @@ class TensorNetworkDecoder:
 
         Args:
             output_inds (tuple[str]): The output indices of the contraction.
-            optimize (Optional[cutn.OptimizerOptions], optional): The optimization options to use. If None, the default options are used.
+            optimize (Optional[cutn.OptimizerOptions], optional): The optimization options to use. 
+                If None or cuquantum.tensornet.OptimizerOptions, the default options are used.
+                Else, Quimb interface at 
+                https://quimb.readthedocs.io/en/latest/autoapi/quimb/tensor/tensor_core/index.html#quimb.tensor.tensor_core.TensorNetwork.contraction_info
             syndrome_batch (Optional[np.ndarray], optional): A batch of syndromes to use for the optimization. If None, the full tensor network is used.
 
         Returns:
