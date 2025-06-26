@@ -148,7 +148,8 @@ def tensor_network_from_syndrome_batch(
 
     return TensorNetwork([
         Tensor(
-            data=minus * detection_events[:, i] + plus * (1.0 - detection_events[:, i]),
+            data=minus * detection_events[:, i] + plus *
+            (1.0 - detection_events[:, i]),
             inds=(syndrome_inds[i], batch_index),
             tags=oset((tags[i], "SYNDROME")),
         ) for i in range(syndrome_length)
@@ -552,11 +553,7 @@ class TensorNetworkDecoder:
         for ind in range(len(self.check_inds)):
             t = self.syndrome_tn.tensors[next(
                 iter(self.syndrome_tn.tag_map[f"SYN_{ind}"]))]
-            t.modify(
-                data=values[ind] * minus +
-                (1.0 - values[ind]) * plus,
-            )
-
+            t.modify(data=values[ind] * minus + (1.0 - values[ind]) * plus,)
 
             # # if s is False, the tensor is the plus state (1, 1): |+> = Hadamard @ |0>
             # # If s is True, the tensor is the minus state (1, -1): |-> = Hadamard @ |1>
