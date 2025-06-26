@@ -14,6 +14,7 @@ import numpy.typing as npt
 from quimb import oset
 from quimb.tensor import Tensor, TensorNetwork
 from autoray import do, to_backend_dtype
+import torch
 
 from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path
 
@@ -261,7 +262,6 @@ def set_backend(contractor_name: str, device: str) -> str:
 
     # GPU contractor + torch backend (only GPU support)
     if contractor_name == "cutensornet":
-        import torch
 
         assert torch.cuda.is_available(), "Torch CUDA is not available."
         assert device in [
@@ -382,7 +382,7 @@ class TensorNetworkDecoder:
         logical_inds: Optional[list[str]] = None,
         logical_tags: Optional[list[str]] = None,
         contract_noise_model: bool = True,
-        contractor_name: Optional[str] = "numpy",
+        contractor_name: Optional[str] = "cutensornet",
         dtype: str = "float64",
         device: str = "cpu",
     ) -> None:
@@ -410,6 +410,14 @@ class TensorNetworkDecoder:
         """
 
         qec.Decoder.__init__(self, H)
+
+        if not torch.cuda.is_available():
+            print(
+                "Warning: Torch CUDA is not available. "
+                "Using CPU for tensor network operations.")
+            contractor_name = "numpy"
+            device = "cpu"
+
 
         num_checks, num_errs = H.shape
         if check_inds is None:
@@ -450,6 +458,7 @@ class TensorNetworkDecoder:
         self.path_batch = None if contractor_name == "cutensornet" else "auto"
         self.slicing_batch = tuple()
         self.slicing_single = tuple()
+        self._batch_size = 1
 
         self.set_contractor(contractor_name, dtype=dtype, device=device)
 
@@ -555,13 +564,6 @@ class TensorNetworkDecoder:
                 iter(self.syndrome_tn.tag_map[f"SYN_{ind}"]))]
             t.modify(data=values[ind] * minus + (1.0 - values[ind]) * plus,)
 
-            # # if s is False, the tensor is the plus state (1, 1): |+> = Hadamard @ |0>
-            # # If s is True, the tensor is the minus state (1, -1): |-> = Hadamard @ |1>
-            # if bool(values[ind]) and t.data[1] != -1:
-            #     t.modify(data=minus)
-            # elif not bool(values[ind]) and t.data[1] != 1:
-            #     t.modify(data=plus)
-
     def set_contractor(self,
                        contractor: str,
                        dtype: Optional[str] = None,
@@ -593,7 +595,6 @@ class TensorNetworkDecoder:
         if not is_cutensornet:
             self._device = "cpu"
         elif "cuda" not in self._device:
-            import torch
 
             raise ValueError(
                 f"Device {self._device} cannot be used with cuTensornet. "
@@ -631,6 +632,14 @@ class TensorNetworkDecoder:
 
         # adjust the values of the syndromes
         self.flip_syndromes(syndrome)
+
+        if self.path_single is None:
+            # If the path is not set, we need to optimize it
+            self.optimize_path(
+                output_inds=(self.logical_obs_inds[0],),
+                optimize=None,
+                syndrome_batch=syndrome_batch,
+            )
 
         contraction_value = CONTRACTORS[self._contractor_name](
             self.full_tn.get_equation(output_inds=(self.logical_obs_inds[0],)),
@@ -672,6 +681,16 @@ class TensorNetworkDecoder:
                                                  self.check_inds,
                                                  batch_index="batch_index")
         set_tensor_type(tn, self._backend, self._dtype, self._device)
+
+        if self.path_batch is None or syndrome_batch.shape[
+                0] != self._batch_size:
+            # If the path is not set, we need to optimize it
+            self.optimize_path(
+                output_inds=("batch_index", self.logical_obs_inds[0]),
+                optimize=None,
+                syndrome_batch=syndrome_batch,
+            )
+            self._batch_size = syndrome_batch.shape[0]
 
         contraction_value = CONTRACTORS[self._contractor_name](
             tn.get_equation(output_inds=("batch_index",
