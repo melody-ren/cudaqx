@@ -19,7 +19,6 @@ set -e
 python_version=$1
 python_version_no_dot=$(echo $python_version | tr -d '.') # 3.10 --> 310
 python=python${python_version}
-platform=$2
 
 ${python} -m pip install --no-cache-dir pytest
 
@@ -40,13 +39,7 @@ fi
 
 # QEC library
 # ======================================
-${python} -m pip install quimb opt_einsum
-if [ "$platform" = "amd64" ]; then
-  # Install tensor network decoder dependencies
-  ${python} -m pip install torch
-else 
-  ${python} -m pip install torch --index-url https://download.pytorch.org/whl/cu126
-fi 
+${python} -m pip install quimb opt_einsum torch
 # Install QEC library with tensor network decoder
 wheel_file=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
 ${python} -m pip install "${wheel_file}[tn_decoder]"
