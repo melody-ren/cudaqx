@@ -283,7 +283,7 @@ jobs:
       - name: Test wheels
         run: |
           ls /wheels
-          bash scripts/ci/test_wheels.sh ${{ matrix.python }} ${{ matrix.runner.arch }}
+          bash scripts/ci/test_wheels.sh ${{ matrix.python }}
 
       # - name: Upload any core files
       #   if: success() || failure()
