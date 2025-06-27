@@ -48,7 +48,20 @@ if [ "$platform" = "amd64" ]; then
   # Install tensor network decoder dependencies
   ${python} -m pip install torch
 else 
-  ${python} -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+  # ${python} -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+
+  if ! ${python} -m pip install torch --index-url https://download.pytorch.org/whl/cu126; then
+  echo "Fallback to manual wheel targeting..."
+  ${python} -m pip install torch \
+    --index-url https://download.pytorch.org/whl/cu126 \
+    --platform linux_aarch64 \
+    --python-version ${python_version} \
+    --implementation cp \
+    --only-binary=:all: \
+    --extra-index-url https://download.pytorch.org/whl/cu126 \
+    --target ./torch_install_dir
+fi
+
 fi 
 # Install QEC library with tensor network decoder
 wheel_file=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
