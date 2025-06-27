@@ -48,7 +48,7 @@ if [ "$platform" = "amd64" ]; then
   # Install tensor network decoder dependencies
   ${python} -m pip install torch
 else 
-  ${python} -m pip install --pre torch --index-url https://download.pytorch.org/whl/nightly/cu124
+  ${python} -m pip install torch --index-url https://download.pytorch.org/whl/cu126
 fi 
 # Install QEC library with tensor network decoder
 wheel_file=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
