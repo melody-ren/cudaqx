@@ -14,9 +14,10 @@ import numpy.typing as npt
 from quimb import oset
 from quimb.tensor import Tensor, TensorNetwork
 from autoray import do, to_backend_dtype
-import torch
+import cupy
 
-from .tensor_network_utils.contractors import BACKENDS, CONTRACTORS, optimize_path
+from .tensor_network_utils.contractors import (
+    BACKENDS, CONTRACTORS, optimize_path, ALLOWED_CONTRACTORS_CONFIGS)
 
 
 def tensor_network_from_parity_check(
@@ -182,101 +183,24 @@ def tensor_network_from_logical_observable(
     )
 
 
-def tensor_to_cpu(data: Any, backend: str,
-                  dtype: str) -> Union[np.ndarray, "torch.Tensor"]:
-    """Convert a tensor to CPU if it is on GPU.
-
-    Args:
-        data (Any): The tensor data (numpy array or torch tensor).
-        backend (str): The backend to use ("numpy" or "torch").
-        dtype (str): The data type to convert to.
-
-    Returns:
-        np.ndarray or torch.Tensor: The tensor on CPU with the specified dtype and backend.
-    """
-    try:
-        # in case the tensor is on GPU
-        data = data.cpu()
-    except AttributeError:
-        pass
-
-    return do(
-        "array",
-        data,
-        like=backend,
-        dtype=to_backend_dtype(dtype, like=backend),
-    )
-
-
-def tensor_to_gpu(data: Any, dtype: str, device: str) -> "torch.Tensor":
-    """Convert a tensor to GPU.
-
-    Args:
-        data: The tensor data (numpy array or torch tensor).
-        dtype: The data type to convert to.
-        device: The CUDA device string (e.g., "cuda:0").
-
-    Returns:
-        torch.Tensor: The tensor on the specified CUDA device.
-    """
-    backend = "torch"
-    return do(
-        "array",
-        data,
-        like=backend,
-        dtype=to_backend_dtype(dtype, like=backend),
-        device=device,
-    )
-
-
 def set_tensor_type(
     tn: TensorNetwork,
     backend: str,
-    dtype: str = "float64",
-    device: Optional[str] = None,
+    dtype: str = "float32",
 ) -> None:
     """Set the backend for the tensor network.
 
     Args:
         tn (TensorNetwork): The tensor network.
         backend (str): The backend to use ("numpy" or "torch").
-        dtype (str, optional): The data type to use. Defaults to "float64".
-        device (Optional[str], optional): The device to use. Defaults to None.
+        dtype (str, optional): The data type to use. Defaults to "float32".
     """
-    if device is None or device == "cpu":
-        tn.apply_to_arrays(lambda x: tensor_to_cpu(x, backend, dtype))
-    elif "cuda" in device:
-        tn.apply_to_arrays(lambda x: tensor_to_gpu(x, dtype, device))
-
-
-def set_backend(contractor_name: str, device: str) -> str:
-    """Set the backend for the contractor.
-
-    Args:
-        contractor_name (str): The name of the contractor.
-        device (str): The device to use.
-
-    Returns:
-        str: The backend name.
-    """
-
-    # GPU contractor + torch backend (only GPU support)
-    if contractor_name == "cutensornet":
-
-        assert torch.cuda.is_available(), "Torch CUDA is not available."
-        assert device in [
-            f"cuda:{i}" for i in range(torch.cuda.device_count())
-        ], (f"Device {device} cannot be used with cuTensornet."
-            f"Please use one of the following devices: "
-            f"Available devices: {[f'cuda:{i}' for i in range(torch.cuda.device_count())]}"
-           )
-        return "torch"
-    # CPU contractor + various backends
-    else:
-        for b in BACKENDS:
-            if b in contractor_name:
-                return b
-
+    tn.apply_to_arrays(lambda x: do(
+        "array",
+        x,
+        like=backend,
+        dtype=to_backend_dtype(dtype, like=backend),
+    ))
 
 def _adjust_default_path_value(val: Any, is_cutensornet: bool) -> Any:
     """Adjust the default path value for the contractor.
@@ -382,9 +306,8 @@ class TensorNetworkDecoder:
         logical_inds: Optional[list[str]] = None,
         logical_tags: Optional[list[str]] = None,
         contract_noise_model: bool = True,
-        contractor_name: Optional[str] = "cutensornet",
         dtype: str = "float32",
-        device: str = "cuda:0",
+        device: str = "cuda",
     ) -> None:
         """Initialize a sparse representation of a tensor network decoder for an arbitrary code
         given by its parity check matrix, logical observables and noise model.
@@ -404,18 +327,21 @@ class TensorNetworkDecoder:
             contract_noise_model (bool, optional): Whether to contract the noise model with the tensor network at initialization.
             contractor_name (Optional[str], optional): The contractor to use. If None, defaults to "numpy".
             dtype (str, optional): The data type of the tensors in the tensor network. Defaults to "float64".
-            device (str, optional): The device to use for the tensors in the tensor network. Defaults to "cpu".
-                If using cuTensornet, this should be a CUDA device like "cuda:0", "cuda:1", etc.
-                If using other contractors, this should be "cpu".
+            device (str, optional): The device to use for the tensors in the tensor network. Defaults to "gpu".
+                Options are "cpu", "cuda", or "cuda:X", where X is the target cuda device.
         """
 
         qec.Decoder.__init__(self, H)
 
-        if not torch.cuda.is_available() and contractor_name == "cutensornet":
-            print("Warning: Torch CUDA is not available. "
+        if cupy.cuda.is_available() and "cuda" in device:
+            contractor_name = "cutensornet"
+            backend = "numpy"
+        else:
+            print("Warning: CUDA is not available. "
                   "Using CPU for tensor network operations.")
-            contractor_name = "numpy"
+            contractor_name = "torch_compiled_opt_einsum"
             device = "cpu"
+            backend = "torch"
 
         num_checks, num_errs = H.shape
         if check_inds is None:
@@ -447,10 +373,6 @@ class TensorNetworkDecoder:
         # The noise model is added later
         self.full_tn = self.code_tn | self.logical_tn | self.syndrome_tn
 
-        if contractor_name not in CONTRACTORS:
-            raise ValueError(f"Contractor {contractor_name} not found. "
-                             f"Available contractors: {CONTRACTORS.keys()}")
-
         # Default values for the path finders
         self.path_single = None if contractor_name == "cutensornet" else "auto"
         self.path_batch = None if contractor_name == "cutensornet" else "auto"
@@ -458,7 +380,7 @@ class TensorNetworkDecoder:
         self.slicing_single = tuple()
         self._batch_size = 1
 
-        self.set_contractor(contractor_name, dtype=dtype, device=device)
+        self.set_contractor(contractor_name, device, backend, dtype)
 
         # Initialize the noise model
         if isinstance(noise_model, TensorNetwork):
@@ -517,6 +439,9 @@ class TensorNetworkDecoder:
             self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                             self.noise_model)
 
+            set_tensor_type(self.full_tn, self._backend, self._dtype)
+
+
     def init_noise_model(self,
                          noise_model: TensorNetwork,
                          contract: bool = False) -> None:
@@ -527,8 +452,7 @@ class TensorNetworkDecoder:
             contract (bool, optional): Whether to contract the noise model with the tensor network. Defaults to False.
         """
         self.noise_model = noise_model
-        set_tensor_type(self.noise_model, self._backend, self._dtype,
-                        self._device)
+        set_tensor_type(self.noise_model, self._backend, self._dtype)
         self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                         self.noise_model)
 
@@ -545,14 +469,10 @@ class TensorNetworkDecoder:
         """
 
         # Below we use autoray.do to ensure that the data is
-        # defined via the correct backend: numpy, torch, jax, etc.
-        # Torch is used for GPU support.
+        # defined via the correct backend: numpy, torch, etc.
 
         dtype = to_backend_dtype(self._dtype, like=self._backend)
         array_args = {"like": self._backend, "dtype": dtype}
-
-        if "cuda" in self._device:
-            array_args["device"] = self._device
 
         minus = do("array", (1.0, -1.0), **array_args)
         plus = do("array", (1.0, 1.0), **array_args)
@@ -564,8 +484,10 @@ class TensorNetworkDecoder:
 
     def set_contractor(self,
                        contractor: str,
+                       device: str,
+                       backend: str,
                        dtype: Optional[str] = None,
-                       device: Optional[str] = None) -> None:
+                       ) -> None:
         """Set the contractor for the tensor network.
 
         Args:
@@ -577,33 +499,25 @@ class TensorNetworkDecoder:
             ValueError: If the contractor is not found or device is invalid for the contractor.
         """
 
-        if contractor not in CONTRACTORS:
-            raise ValueError(f"Contractor {contractor} not found. "
-                             f"Available contractors: {CONTRACTORS.keys()}")
+        # Check if the contractor is valid
+        dev = "cuda" if "cuda" in device else "cpu"
+        assert (contractor, backend, dev) in ALLOWED_CONTRACTORS_CONFIGS, (
+            f"Invalid contractor configuration: {contractor}, {backend}, {device}. "
+            f"Allowed configurations are: {ALLOWED_CONTRACTORS_CONFIGS}"
+        )
+
+        self._contractor_name = contractor
+        self._backend = backend
+        self._device = device
+        self._device_id=int(self._device.split(":")[-1]) if "cuda:" in self._device else 0
 
         # Reset only if specified
         if dtype is not None:
             self._dtype = dtype
-        if device is not None:
-            self._device = device
+
+        set_tensor_type(self.full_tn, self._backend, self._dtype)
 
         is_cutensornet = contractor == "cutensornet"
-        # If the contractor is cutensornet, we need to set the device
-        # to the GPU device. Otherwise, we set it to CPU.
-        if not is_cutensornet:
-            self._device = "cpu"
-        elif "cuda" not in self._device:
-
-            raise ValueError(
-                f"Device {self._device} cannot be used with cuTensornet. "
-                f"Please use one of the following devices: "
-                f"Available devices: {[f'cuda:{i}' for i in range(torch.cuda.device_count())]}"
-            )
-
-        self._contractor_name = contractor
-        self._backend = set_backend(contractor, self._device)
-        set_tensor_type(self.full_tn, self._backend, self._dtype, self._device)
-
         self.path_batch = _adjust_default_path_value(self.path_batch,
                                                      is_cutensornet)
         self.path_single = _adjust_default_path_value(self.path_single,
@@ -643,6 +557,8 @@ class TensorNetworkDecoder:
             self.full_tn.arrays,
             optimize=self.path_single,
             slicing=self.slicing_single,
+            device_id=self._device_id,
+
         )
 
         res = qec.DecoderResult()
@@ -677,7 +593,7 @@ class TensorNetworkDecoder:
         tn |= tensor_network_from_syndrome_batch(syndrome_batch,
                                                  self.check_inds,
                                                  batch_index="batch_index")
-        set_tensor_type(tn, self._backend, self._dtype, self._device)
+        set_tensor_type(tn, self._backend, self._dtype)
 
         if self.path_batch is None or syndrome_batch.shape[
                 0] != self._batch_size:
@@ -695,6 +611,7 @@ class TensorNetworkDecoder:
             tn.arrays,
             optimize=self.path_batch,
             slicing=self.slicing_batch,
+            device_id=self._device_id,
         )
 
         res = []
@@ -740,7 +657,7 @@ class TensorNetworkDecoder:
                                                      batch_index="batch_index")
         else:
             tn = self.full_tn
-        set_tensor_type(tn, self._backend, self._dtype, self._device)
+        set_tensor_type(tn, self._backend, self._dtype)
 
         # Optimize the path
         path, info = optimize_path(optimize, output_inds, tn)

@@ -17,7 +17,8 @@ def einsum_torch(
     subscripts: str,
     tensors: list[torch.Tensor],
     optimize: str = "auto",
-    slicing: tuple = tuple()) -> torch.Tensor:
+    slicing: tuple = tuple(),
+    device_id: int = 0) -> torch.Tensor:
     """
     Perform einsum contraction using torch.
 
@@ -25,7 +26,9 @@ def einsum_torch(
         subscripts (str): The einsum subscripts.
         tensors (list[torch.Tensor]): list of torch tensors to contract.
         optimize (str, optional): Optimization strategy. Defaults to "auto".
-        slicing (tuple, optional): Slicing specification. Defaults to empty tuple.
+        slicing (tuple, optional): Not supported in this implementation.
+            Defaults to empty tuple.
+        device_id (int, optional): Device ID for the contraction. Defaults to 0.
 
     Returns:
         torch.Tensor: The contracted tensor.
@@ -39,7 +42,8 @@ torch_compiled_contractor = torch.compile(einsum_torch)
 def contractor(subscripts: str,
                tensors: list[Any],
                optimize: str = "auto",
-               slicing: tuple = tuple()) -> Any:
+               slicing: tuple = tuple(),
+               device_id: int = 0) -> Any:
     """
     Perform einsum contraction using opt_einsum.
 
@@ -47,7 +51,10 @@ def contractor(subscripts: str,
         subscripts (str): The einsum subscripts.
         tensors (list[Any]): list of tensors to contract.
         optimize (str, optional): Optimization strategy. Defaults to "auto".
-        slicing (tuple, optional): Slicing specification. Defaults to empty tuple.
+        slicing (tuple, optional): Not supported in this implementation.
+            Defaults to empty tuple.
+        device_id (int, optional): Not supported in this implementation.
+            Defaults to 0.
 
     Returns:
         Any: The contracted tensor.
@@ -62,7 +69,8 @@ def cutn_contractor(
     subscripts: str,
     tensors: list[Any],
     optimize: Optional[Any] = None,
-    slicing: tuple = tuple()) -> Any:
+    slicing: tuple = tuple(),
+    device_id: int = 0) -> Any:
     """
     Perform contraction using cuQuantum's tensornet contractor.
 
@@ -71,6 +79,7 @@ def cutn_contractor(
         tensors (list[Any]): list of tensors to contract.
         optimize (Optional[Any], optional): cuQuantum optimizer options or path. Defaults to None.
         slicing (tuple, optional): Slicing specification. Defaults to empty tuple.
+        device_id (int, optional): Device ID for the contraction. Defaults to 0.
 
     Returns:
         Any: The contracted tensor.
@@ -79,6 +88,7 @@ def cutn_contractor(
         subscripts,
         *tensors,
         optimize=cutn.OptimizerOptions(path=optimize, slicing=slicing),
+        options={'device_id': device_id},
     )
 
 
@@ -93,6 +103,14 @@ CONTRACTORS: Dict[str, Callable] = {
     "cutensornet": cutn_contractor,
 }
 
+ALLOWED_CONTRACTORS_CONFIGS: list[tuple[str, str, str]] = [
+    # (contractor_name, backend, device)
+    ("numpy", "numpy", "cpu"),
+    ("torch", "torch", "cpu"),
+    ("torch_compiled_opt_einsum", "torch", "cpu"),
+    ("cutensornet", "numpy", "cuda"),
+    ("cutensornet", "torch", "cuda"),
+]
 
 def optimize_path(optimize: Any, output_inds: tuple[str, ...],
                   tn: TensorNetwork) -> tuple[Any, Any]:
