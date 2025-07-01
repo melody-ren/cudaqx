@@ -16,9 +16,7 @@ from quimb.tensor import Tensor, TensorNetwork
 from autoray import do, to_backend_dtype
 import cupy
 
-from .tensor_network_utils.contractors import (
-    BACKENDS, CONTRACTORS, optimize_path, ALLOWED_CONTRACTORS_CONFIGS)
-
+from .tensor_network_utils.contractors import ContractorConfig, optimize_path
 
 def tensor_network_from_parity_check(
     parity_check_matrix: npt.NDArray[Any],
@@ -339,7 +337,7 @@ class TensorNetworkDecoder:
         else:
             print("Warning: CUDA is not available. "
                   "Using CPU for tensor network operations.")
-            contractor_name = "torch_compiled_opt_einsum"
+            contractor_name = "torch"
             device = "cpu"
             backend = "torch"
 
@@ -439,7 +437,7 @@ class TensorNetworkDecoder:
             self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                             self.noise_model)
 
-            set_tensor_type(self.full_tn, self._backend, self._dtype)
+            set_tensor_type(self.full_tn, self.contractor_config.backend, self._dtype)
 
 
     def init_noise_model(self,
@@ -452,7 +450,7 @@ class TensorNetworkDecoder:
             contract (bool, optional): Whether to contract the noise model with the tensor network. Defaults to False.
         """
         self.noise_model = noise_model
-        set_tensor_type(self.noise_model, self._backend, self._dtype)
+        set_tensor_type(self.noise_model, self.contractor_config.backend, self._dtype)
         self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                         self.noise_model)
 
@@ -471,8 +469,8 @@ class TensorNetworkDecoder:
         # Below we use autoray.do to ensure that the data is
         # defined via the correct backend: numpy, torch, etc.
 
-        dtype = to_backend_dtype(self._dtype, like=self._backend)
-        array_args = {"like": self._backend, "dtype": dtype}
+        dtype = to_backend_dtype(self._dtype, like=self.contractor_config.backend)
+        array_args = {"like": self.contractor_config.backend, "dtype": dtype}
 
         minus = do("array", (1.0, -1.0), **array_args)
         plus = do("array", (1.0, 1.0), **array_args)
@@ -499,23 +497,17 @@ class TensorNetworkDecoder:
             ValueError: If the contractor is not found or device is invalid for the contractor.
         """
 
-        # Check if the contractor is valid
-        dev = "cuda" if "cuda" in device else "cpu"
-        assert (contractor, backend, dev) in ALLOWED_CONTRACTORS_CONFIGS, (
-            f"Invalid contractor configuration: {contractor}, {backend}, {device}. "
-            f"Allowed configurations are: {ALLOWED_CONTRACTORS_CONFIGS}"
+        self.contractor_config = ContractorConfig(
+            contractor_name=contractor,
+            backend=backend,
+            device=device,
         )
-
-        self._contractor_name = contractor
-        self._backend = backend
-        self._device = device
-        self._device_id=int(self._device.split(":")[-1]) if "cuda:" in self._device else 0
 
         # Reset only if specified
         if dtype is not None:
             self._dtype = dtype
 
-        set_tensor_type(self.full_tn, self._backend, self._dtype)
+        set_tensor_type(self.full_tn, self.contractor_config.backend, self._dtype)
 
         is_cutensornet = contractor == "cutensornet"
         self.path_batch = _adjust_default_path_value(self.path_batch,
@@ -552,13 +544,12 @@ class TensorNetworkDecoder:
                 optimize=self.path_single,
             )
 
-        contraction_value = CONTRACTORS[self._contractor_name](
+        contraction_value = self.contractor_config.contractor(
             self.full_tn.get_equation(output_inds=(self.logical_obs_inds[0],)),
             self.full_tn.arrays,
             optimize=self.path_single,
             slicing=self.slicing_single,
-            device_id=self._device_id,
-
+            device_id=self.contractor_config.device_id,
         )
 
         res = qec.DecoderResult()
@@ -593,7 +584,7 @@ class TensorNetworkDecoder:
         tn |= tensor_network_from_syndrome_batch(syndrome_batch,
                                                  self.check_inds,
                                                  batch_index="batch_index")
-        set_tensor_type(tn, self._backend, self._dtype)
+        set_tensor_type(tn, self.contractor_config.backend, self._dtype)
 
         if self.path_batch is None or syndrome_batch.shape[
                 0] != self._batch_size:
@@ -605,13 +596,13 @@ class TensorNetworkDecoder:
             )
             self._batch_size = syndrome_batch.shape[0]
 
-        contraction_value = CONTRACTORS[self._contractor_name](
+        contraction_value = self.contractor_config.contractor(
             tn.get_equation(output_inds=("batch_index",
                                          self.logical_obs_inds[0])),
             tn.arrays,
             optimize=self.path_batch,
             slicing=self.slicing_batch,
-            device_id=self._device_id,
+            device_id=self.contractor_config.device_id,
         )
 
         res = []
@@ -657,7 +648,7 @@ class TensorNetworkDecoder:
                                                      batch_index="batch_index")
         else:
             tn = self.full_tn
-        set_tensor_type(tn, self._backend, self._dtype)
+        set_tensor_type(tn, self.contractor_config.backend, self._dtype)
 
         # Optimize the path
         path, info = optimize_path(optimize, output_inds, tn)
