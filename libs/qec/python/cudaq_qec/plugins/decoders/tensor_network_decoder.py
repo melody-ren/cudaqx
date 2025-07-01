@@ -18,6 +18,7 @@ import cupy
 
 from .tensor_network_utils.contractors import ContractorConfig, optimize_path
 
+
 def tensor_network_from_parity_check(
     parity_check_matrix: npt.NDArray[Any],
     row_inds: list[str],
@@ -199,6 +200,7 @@ def set_tensor_type(
         like=backend,
         dtype=to_backend_dtype(dtype, like=backend),
     ))
+
 
 def _adjust_default_path_value(val: Any, is_cutensornet: bool) -> Any:
     """Adjust the default path value for the contractor.
@@ -437,8 +439,8 @@ class TensorNetworkDecoder:
             self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                             self.noise_model)
 
-            set_tensor_type(self.full_tn, self.contractor_config.backend, self._dtype)
-
+            set_tensor_type(self.full_tn, self.contractor_config.backend,
+                            self._dtype)
 
     def init_noise_model(self,
                          noise_model: TensorNetwork,
@@ -450,7 +452,8 @@ class TensorNetworkDecoder:
             contract (bool, optional): Whether to contract the noise model with the tensor network. Defaults to False.
         """
         self.noise_model = noise_model
-        set_tensor_type(self.noise_model, self.contractor_config.backend, self._dtype)
+        set_tensor_type(self.noise_model, self.contractor_config.backend,
+                        self._dtype)
         self.full_tn = (self.code_tn | self.logical_tn | self.syndrome_tn |
                         self.noise_model)
 
@@ -469,7 +472,8 @@ class TensorNetworkDecoder:
         # Below we use autoray.do to ensure that the data is
         # defined via the correct backend: numpy, torch, etc.
 
-        dtype = to_backend_dtype(self._dtype, like=self.contractor_config.backend)
+        dtype = to_backend_dtype(self._dtype,
+                                 like=self.contractor_config.backend)
         array_args = {"like": self.contractor_config.backend, "dtype": dtype}
 
         minus = do("array", (1.0, -1.0), **array_args)
@@ -480,12 +484,13 @@ class TensorNetworkDecoder:
                 iter(self.syndrome_tn.tag_map[f"SYN_{ind}"]))]
             t.modify(data=values[ind] * minus + (1.0 - values[ind]) * plus,)
 
-    def set_contractor(self,
-                       contractor: str,
-                       device: str,
-                       backend: str,
-                       dtype: Optional[str] = None,
-                       ) -> None:
+    def set_contractor(
+        self,
+        contractor: str,
+        device: str,
+        backend: str,
+        dtype: Optional[str] = None,
+    ) -> None:
         """Set the contractor for the tensor network.
 
         Args:
@@ -507,7 +512,8 @@ class TensorNetworkDecoder:
         if dtype is not None:
             self._dtype = dtype
 
-        set_tensor_type(self.full_tn, self.contractor_config.backend, self._dtype)
+        set_tensor_type(self.full_tn, self.contractor_config.backend,
+                        self._dtype)
 
         is_cutensornet = contractor == "cutensornet"
         self.path_batch = _adjust_default_path_value(self.path_batch,

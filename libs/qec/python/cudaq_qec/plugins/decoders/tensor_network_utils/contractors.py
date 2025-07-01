@@ -14,12 +14,11 @@ from cuquantum import tensornet as cutn
 from quimb.tensor import TensorNetwork
 
 
-def einsum_torch(
-    subscripts: str,
-    tensors: list[torch.Tensor],
-    optimize: str = "auto",
-    slicing: tuple = tuple(),
-    device_id: int = 0) -> Any:
+def einsum_torch(subscripts: str,
+                 tensors: list[torch.Tensor],
+                 optimize: str = "auto",
+                 slicing: tuple = tuple(),
+                 device_id: int = 0) -> Any:
     """
     Perform einsum contraction using torch.
 
@@ -36,11 +35,12 @@ def einsum_torch(
     """
     return torch.einsum(subscripts, *tensors)
 
+
 def contractor(subscripts: str,
                tensors: list[Any],
                optimize: str = "auto",
-                slicing: tuple = tuple(),
-                device_id: int = 0) -> Any:
+               slicing: tuple = tuple(),
+               device_id: int = 0) -> Any:
     """
     Perform einsum contraction using opt_einsum.
 
@@ -59,12 +59,11 @@ def contractor(subscripts: str,
     return oe.contract(subscripts, *tensors, optimize=optimize)
 
 
-def cutn_contractor(
-    subscripts: str,
-    tensors: list[Any],
-    optimize: Optional[Any] = None,
-    slicing: tuple = tuple(),
-    device_id: int = 0) -> Any:
+def cutn_contractor(subscripts: str,
+                    tensors: list[Any],
+                    optimize: Optional[Any] = None,
+                    slicing: tuple = tuple(),
+                    device_id: int = 0) -> Any:
     """
     Perform contraction using cuQuantum's tensornet contractor.
 
@@ -84,6 +83,7 @@ def cutn_contractor(
         optimize=cutn.OptimizerOptions(path=optimize, slicing=slicing),
         options={'device_id': device_id},
     )
+
 
 def optimize_path(optimize: Any, output_inds: tuple[str, ...],
                   tn: TensorNetwork) -> tuple[Any, Any]:
@@ -147,7 +147,8 @@ class ContractorConfig:
             ("cutensornet", "numpy", "cuda"),
             ("cutensornet", "torch", "cuda"),
         )
-        self._default_config: tuple[str, str, str] = ("cutensornet", "torch", "cuda")
+        self._default_config: tuple[str, str,
+                                    str] = ("cutensornet", "torch", "cuda")
         self._allowed_backends: list[str] = ("numpy", "torch")
         self._contractors: dict[str, Callable] = {
             "numpy": contractor,
@@ -164,20 +165,19 @@ class ContractorConfig:
         """
         dev = "cuda" if "cuda" in self.device else "cpu"
         # Validate the configuration
-        if (self.contractor_name, self.backend, dev) not in self._allowed_configs:
+        if (self.contractor_name, self.backend,
+                dev) not in self._allowed_configs:
             raise ValueError(
                 f"Invalid contractor configuration: "
                 f"{self.contractor_name}, {self.backend}, {self.device}. "
-                f"Allowed configurations are: {self._allowed_configs}."
-            )
+                f"Allowed configurations are: {self._allowed_configs}.")
 
         if self.backend not in self._allowed_backends:
-            raise ValueError(
-                f"Invalid backend: {self.backend}. "
-                f"Allowed backends are: {self._allowed_backends}."
-            )
-        
-        self.device_id = int(self.device.split(":")[-1]) if "cuda:" in self.device else 0
+            raise ValueError(f"Invalid backend: {self.backend}. "
+                             f"Allowed backends are: {self._allowed_backends}.")
+
+        self.device_id = int(
+            self.device.split(":")[-1]) if "cuda:" in self.device else 0
 
     @property
     def contractor(self) -> Callable:
