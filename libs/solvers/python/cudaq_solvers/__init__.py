@@ -8,3 +8,4 @@
 
 from ._pycudaqx_solvers_the_suffix_matters_cudaq_solvers import *
 from ._pycudaqx_solvers_the_suffix_matters_cudaq_solvers import __version__
+from .gqe_algorithm.gqe import gqe
