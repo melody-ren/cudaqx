@@ -7,6 +7,7 @@
 # ============================================================================ #
 from typing import Any, Callable, Optional
 from dataclasses import dataclass, field
+from typing import Callable, ClassVar, Tuple, Dict, List
 
 import opt_einsum as oe
 import torch
@@ -111,80 +112,45 @@ def optimize_path(optimize: Any, output_inds: tuple[str, ...],
     return ci.path, ci
 
 
+@dataclass(frozen=True)
 class ContractorConfig:
-    """
-    Configuration class for managing contractor settings.
-    This class validates the contractor configuration and provides access to
-    the appropriate contractor function based on the configuration.
-    """
     contractor_name: str
     backend: str
     device: str
-    device_id: int
-    _allowed_configs: tuple[tuple[str, str, str]]
-    _default_config: tuple[str, str, str]
-    _allowed_backends: list[str]
-    _contractors: dict[str, Callable]
+    device_id: int = field(init=False)
+    
+    _allowed_configs: ClassVar[Tuple[Tuple[str, str, str], ...]] = (
+        ("numpy", "numpy", "cpu"),
+        ("torch", "torch", "cpu"),
+        ("cutensornet", "numpy", "cuda"),
+        ("cutensornet", "torch", "cuda"),
+    )
+    _allowed_backends: ClassVar[List[str]] = ["numpy", "torch"]
+    _contractors: ClassVar[Dict[str, Callable]] = {
+        "numpy": contractor,
+        "torch": contractor,
+        "cutensornet": cutn_contractor,
+    }
 
-    def __init__(self, contractor_name: str, backend: str, device: str):
-        """
-        Initialize the ContractorConfig with contractor name, backend, and device.
-
-        Args:
-            contractor_name (str): Name of the contractor.
-            backend (str): Backend to use (e.g., 'numpy', 'torch').
-            device (str): Device to use (e.g., 'cpu', 'cuda').
-        """
-        self.contractor_name = contractor_name
-        self.backend = backend
-        self.device = device
-        self.device_id = 0
-
-        self._allowed_configs: tuple[tuple[str, str, str]] = (
-            # (contractor_name, backend, device)
-            ("numpy", "numpy", "cpu"),
-            ("torch", "torch", "cpu"),
-            ("cutensornet", "numpy", "cuda"),
-            ("cutensornet", "torch", "cuda"),
-        )
-        self._default_config: tuple[str, str,
-                                    str] = ("cutensornet", "torch", "cuda")
-        self._allowed_backends: list[str] = ("numpy", "torch")
-        self._contractors: dict[str, Callable] = {
-            "numpy": contractor,
-            "torch": contractor,
-            "cutensornet": cutn_contractor,
-        }
-        self._validate_config()
-
-    def _validate_config(self):
-        """
-        Validate the contractor configuration.
-        Raises:
-            ValueError: If the configuration is invalid.
-        """
+    def __post_init__(self):
         dev = "cuda" if "cuda" in self.device else "cpu"
-        # Validate the configuration
-        if (self.contractor_name, self.backend,
-                dev) not in self._allowed_configs:
+        if (self.contractor_name, self.backend, dev) not in self._allowed_configs:
             raise ValueError(
                 f"Invalid contractor configuration: "
                 f"{self.contractor_name}, {self.backend}, {self.device}. "
-                f"Allowed configurations are: {self._allowed_configs}.")
-
+                f"Allowed configurations are: {self._allowed_configs}."
+            )
         if self.backend not in self._allowed_backends:
-            raise ValueError(f"Invalid backend: {self.backend}. "
-                             f"Allowed backends are: {self._allowed_backends}.")
-
-        self.device_id = int(
-            self.device.split(":")[-1]) if "cuda:" in self.device else 0
+            raise ValueError(
+                f"Invalid backend: {self.backend}. "
+                f"Allowed backends are: {self._allowed_backends}."
+            )
+        object.__setattr__(
+            self, "device_id",
+            int(self.device.split(":")[-1]) if "cuda:" in self.device else 0
+        )
 
     @property
     def contractor(self) -> Callable:
-        """
-        Get the contractor function based on the configuration.
-
-        Returns:
-            Callable: The contractor function.
-        """
+        """Return the contractor function for this configuration."""
         return self._contractors[self.contractor_name]

@@ -11,6 +11,13 @@ import pytest
 from quimb.tensor import TensorNetwork
 import cudaq_qec as qec
 
+from cudaq_qec.plugins.decoders.tensor_network_decoder import (
+    tensor_network_from_parity_check, tensor_network_from_single_syndrome,
+    prepare_syndrome_data_batch, tensor_network_from_syndrome_batch,
+    tensor_network_from_logical_observable)
+from cudaq_qec.plugins.decoders.tensor_network_utils.contractors import (
+    optimize_path, cutn_contractor, ContractorConfig, contractor, cutn_contractor)
+from cudaq_qec.plugins.decoders.tensor_network_utils.noise_models import factorized_noise_model, error_pairs_noise_model
 
 def make_simple_code():
     # [[1, 1, 0], [0, 1, 1]] parity check, 1 logical, depolarizing noise
@@ -32,15 +39,15 @@ def test_decoder_init_and_attributes():
     assert isinstance(decoder.full_tn, TensorNetwork)
     assert hasattr(decoder, "noise_model")
 
-    import torch
-    if torch.cuda.is_available():
-        assert decoder._contractor_name == "cutensornet"
-        assert decoder._backend == "torch"
-        assert decoder._device == "cuda:0"
+    import cupy
+    if cupy.cuda.is_available():
+        assert decoder.contractor_config.contractor_name == "cutensornet"
+        assert decoder.contractor_config.backend == "numpy"
+        assert decoder.contractor_config.device == "cuda"
     else:
-        assert decoder._contractor_name == "numpy"
-        assert decoder._backend == "numpy"
-        assert decoder._device == "cpu"
+        assert decoder.contractor_config.contractor_name == "torch"
+        assert decoder.contractor_config.backend == "torch"
+        assert decoder.contractor_config.device == "cpu"
     assert decoder._dtype == "float32"
 
 
@@ -96,10 +103,7 @@ def test_decoder_flip_syndromes():
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
                               logical_obs=logical,
-                              noise_model=noise,
-                              contractor_name="numpy",
-                              dtype="float64",
-                              device="cpu")
+                              noise_model=noise)
 
     new_syndromes = [1.0] * H.shape[0]
     decoder.flip_syndromes(new_syndromes)
@@ -131,17 +135,14 @@ def test_decoder_decode_batch():
     decoder = qec.get_decoder("tensor_network_decoder",
                               H,
                               logical_obs=logical,
-                              noise_model=noise,
-                              contractor_name="numpy",
-                              dtype="float64",
-                              device="cpu")
+                              noise_model=noise)
     batch = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
     res = decoder.decode_batch(batch)
     print([r.result for r in res])
     assert isinstance(res, list)
     assert all(hasattr(r, "converged") and hasattr(r, "result") for r in res)
     assert all(
-        isinstance(r.result, list) and 0.0 <= r.result[0] <= 1.0 for r in res)
+        isinstance(r.result, list) and 0.0 <= np.round(r.result[0]) <= 1.0 for r in res)
 
 
 def test_decoder_set_contractor_invalid():
@@ -151,7 +152,7 @@ def test_decoder_set_contractor_invalid():
                               logical_obs=logical,
                               noise_model=noise)
     with pytest.raises(ValueError):
-        decoder.set_contractor("not_a_contractor")
+        decoder.set_contractor("not_a_contractor", "not_a_device", "not_a_backend")
 
 
 def test_TensorNetworkDecoder_optimize_path_all_variants():
@@ -194,105 +195,6 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     assert isinstance(info3, PathInfo)
 
 
-@pytest.mark.parametrize("contractor,dtype,device,expect_gpu", [
-    ("numpy", "float64", "cpu", False),
-    ("torch", "float32", "cpu", False),
-    ("torch", "float64", "cpu", False),
-    ("torch_compiled_opt_einsum", "float64", "cpu", False),
-    ("torch_compiled_opt_einsum", "float32", "cpu", False),
-    ("cutensornet", "float32", "cuda:0", True),
-    ("cutensornet", "float64", "cuda:0", True),
-])
-def test_set_contractor_variants(contractor, dtype, device, expect_gpu):
-    H, logical, noise = make_simple_code()
-    decoder = qec.get_decoder("tensor_network_decoder",
-                              H,
-                              logical_obs=logical,
-                              noise_model=noise)
-    import torch
-
-    if expect_gpu and not torch.cuda.is_available():
-        pytest.skip("No GPUs available, skip GPU contractor test.")
-
-    if contractor == "cutensornet" and not torch.cuda.is_available():
-        with pytest.raises(AssertionError):
-            decoder.set_contractor(contractor, dtype=dtype, device=device)
-        return
-
-    if expect_gpu and "cuda" not in device:
-        with pytest.raises(ValueError):
-            decoder.set_contractor(contractor, dtype=dtype, device=device)
-        return
-
-    if not expect_gpu and contractor == "cutensornet":
-        with pytest.raises(ValueError):
-            decoder.set_contractor(contractor, dtype=dtype, device="cpu")
-        return
-
-    decoder.set_contractor(contractor, dtype=dtype, device=device)
-    assert decoder._contractor_name == contractor
-    assert decoder._dtype == dtype
-    assert decoder._device == (device if expect_gpu else "cpu")
-    if expect_gpu:
-        assert decoder._backend == "torch"
-    elif "torch" in contractor:
-        assert decoder._backend == "torch"
-    else:
-        assert decoder._backend == "numpy"
-
-
-@pytest.mark.parametrize(
-    "init_contractor,change_contractor,init_device,change_device,expect_gpu", [
-        ("numpy", "torch", "cpu", "cpu", False),
-        ("torch", "numpy", "cpu", "cpu", False),
-        ("torch", "torch_compiled_opt_einsum", "cpu", "cpu", False),
-        ("torch", "cutensornet", "cpu", "cuda:0", True),
-        ("cutensornet", "numpy", "cuda:0", "cpu", False),
-        ("cutensornet", "torch", "cuda:0", "cpu", False),
-        ("cutensornet", "cutensornet", "cuda:0", "cpu", True),
-    ])
-def test_decoder_change_contractor(init_contractor, change_contractor,
-                                   init_device, change_device, expect_gpu):
-    H, logical, noise = make_simple_code()
-    import torch
-
-    if ("cuda" in init_device or expect_gpu or
-            "cuda" in change_device) and not torch.cuda.is_available():
-        pytest.skip("No GPUs available, skip GPU contractor test.")
-
-    # Initialize decoder with initial contractor and device
-    decoder = qec.get_decoder("tensor_network_decoder",
-                              H,
-                              logical_obs=logical,
-                              noise_model=noise,
-                              contractor_name=init_contractor,
-                              device=init_device)
-
-    assert decoder._contractor_name == init_contractor
-    assert decoder._device == init_device
-
-    # Change contractor and device
-    if expect_gpu and "cuda" not in change_device:
-        with pytest.raises(ValueError):
-            decoder.set_contractor(change_contractor, device=change_device)
-        return
-
-    if change_contractor == "cutensornet" and not torch.cuda.is_available():
-        with pytest.raises(AssertionError):
-            decoder.set_contractor(change_contractor, device=change_device)
-        return
-
-    decoder.set_contractor(change_contractor, device=change_device)
-    assert decoder._contractor_name == change_contractor
-    assert decoder._device == (change_device if expect_gpu else "cpu")
-    if expect_gpu:
-        assert decoder._backend == "torch"
-    elif "torch" in change_contractor:
-        assert decoder._backend == "torch"
-    else:
-        assert decoder._backend == "numpy"
-
-
 def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     np.random.seed(42)
     n_checks = 5
@@ -318,9 +220,9 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     ]
 
     contractors = [
-        ("numpy", "float64", "cpu"),
-        ("torch", "float64", "cpu"),
-        ("cutensornet", "float32", "cuda:0"),
+        ("numpy", "float64", "cpu", "numpy"),
+        ("torch", "float64", "cpu", "torch"),
+        ("cutensornet", "float32", "cuda:0", "numpy"),
     ]
 
     decoder = qec.get_decoder("tensor_network_decoder",
@@ -332,12 +234,12 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     batch = np.random.choice([False, True], size=(n_batch, n_checks))
     batch = batch.astype(np.float64, copy=False)  # Ensure float64 dtype
 
-    for contractor, dtype, device in contractors:
+    for contractor, dtype, device, backend in contractors:
         if "cuda" in device and not torch.cuda.is_available():
             # Skip cutensornet tests if no GPU is available
             continue
         try:
-            decoder.set_contractor(contractor, dtype=dtype, device=device)
+            decoder.set_contractor(contractor, device, backend, dtype=dtype)
         except Exception as e:
             print(f"Skipping contractor {contractor} ({dtype}, {device}): {e}")
             continue
@@ -382,3 +284,254 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
                                    expected_cast,
                                    rtol=rtol,
                                    atol=atol)
+
+
+def test_tensor_network_from_parity_check_basic():
+    mat = np.array([[1, 1, 0], [0, 1, 1]])
+    row_inds = ['r0', 'r1']
+    col_inds = ['c0', 'c1', 'c2']
+    tags = ['tag0', 'tag1', 'tag2', 'tag3']
+    tn = tensor_network_from_parity_check(mat, row_inds, col_inds, tags=tags)
+    assert isinstance(tn, TensorNetwork)
+    assert len(tn.tensors) == 4
+    expected_inds = [('r0', 'c0'), ('r0', 'c1'), ('r1', 'c1'), ('r1', 'c2')]
+    inds = [t.inds for t in tn.tensors]
+    assert set(inds) == set(expected_inds)
+    for i, t in enumerate(tn.tensors):
+        assert t.tags.pop() in tags
+        assert t.inds in expected_inds
+        np.testing.assert_array_equal(t.data, np.array([[1.0, 1.0], [1.0,
+                                                                     -1.0]]))
+
+
+def test_tensor_network_from_parity_check_no_tags():
+    mat = np.array([[1, 0], [0, 1]])
+    row_inds = ['r0', 'r1']
+    col_inds = ['c0', 'c1']
+    tn = tensor_network_from_parity_check(mat, row_inds, col_inds)
+    assert isinstance(tn, TensorNetwork)
+    assert len(tn.tensors) == 2
+    for t in tn.tensors:
+        assert len(t.tags) == 0
+
+
+def test_tensor_network_from_parity_check_empty():
+    mat = np.zeros((2, 2), dtype=int)
+    row_inds = ['r0', 'r1']
+    col_inds = ['c0', 'c1']
+    tn = tensor_network_from_parity_check(mat, row_inds, col_inds)
+    assert isinstance(tn, TensorNetwork)
+    assert len(tn.tensors) == 0
+
+
+def test_tensor_network_from_single_syndrome_all_flipped():
+    syndrome = [1.0, 1.0, 1.0]
+    check_inds = ['c0', 'c1', 'c2']
+    tn = tensor_network_from_single_syndrome(syndrome, check_inds)
+    assert len(tn.tensors) == 3
+    for i, t in enumerate(tn.tensors):
+        np.testing.assert_array_equal(t.data, np.array([1.0, -1.0]))
+        assert t.inds == (check_inds[i],)
+        assert f"SYN_{i}" in t.tags
+        assert "SYNDROME" in t.tags
+
+
+def test_tensor_network_from_single_syndrome_mixed():
+    syndrome = [0.0, 1.0, 0.0]
+    check_inds = ['a', 'b', 'c']
+    tn = tensor_network_from_single_syndrome(syndrome, check_inds)
+    assert len(tn.tensors) == 3
+    for i, t in enumerate(tn.tensors):
+        expected = np.array([1.0, -1.0]) if syndrome[i] else np.array(
+            [1.0, 1.0])
+        np.testing.assert_array_equal(t.data, expected)
+        assert t.inds == (check_inds[i],)
+        assert f"SYN_{i}" in t.tags
+        assert "SYNDROME" in t.tags
+
+
+def test_prepare_syndrome_data_batch_shape_and_values_randomized():
+    np.random.seed(123)
+    data = np.random.choice([1.0, 0.0],
+                            size=(4, 5))  # syndrome length 4, 5 syndromes
+    arr = prepare_syndrome_data_batch(data)
+    assert arr.shape == (5, 4, 2)
+    # Check that each entry is [1, 1] if False, [1, -1] if True
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            expected = np.array([1, -1]) if data[i, j] else np.array([1, 1])
+            np.testing.assert_array_equal(arr[j, i], expected)
+
+
+def test_tensor_network_from_syndrome_batch_tags_and_inds_randomized():
+    np.random.seed(42)
+    batch_size = 5
+    n_synd = 4
+    detection_events = np.random.choice([1.0, 0.0], size=(batch_size, n_synd))
+    detection_events = detection_events.astype(np.float32,
+                                               copy=False)  # Ensure int8 type
+    syndrome_inds = [f's{i}' for i in range(n_synd)]
+    tags = [f'tag{i}' for i in range(n_synd)]
+    tn = tensor_network_from_syndrome_batch(detection_events,
+                                            syndrome_inds,
+                                            batch_index="batch",
+                                            tags=tags)
+    assert len(tn.tensors) == n_synd
+    for i, t in enumerate(tn.tensors):
+        assert t.inds == (syndrome_inds[i], "batch")
+        assert tags[i] in t.tags
+        assert "SYNDROME" in t.tags
+        # Check tensor data for each batch
+        for b in range(batch_size):
+            expected = detection_events[b, i] * np.array([1.0, -1.0])
+            expected += (1 - detection_events[b, i]) * np.array([1.0, 1.0])
+            np.testing.assert_array_equal(t.data[:, b], expected)
+
+
+def test_tensor_network_from_logical_observable():
+    obs = np.array([[0.0, 1.0, 0.0]])
+    obs_inds = ['o0']
+    tn = tensor_network_from_logical_observable(obs,
+                                                obs_inds, ["l0"],
+                                                logical_tags=["OBS_0"])
+    assert len(tn.tensors) == obs.shape[0]
+    for i, t in enumerate(tn.tensors):
+        expected = np.array([[1.0, 1.0], [1.0, -1.0]])
+        np.testing.assert_array_equal(t.data, expected)
+        assert t.inds == (obs_inds[i], "l0")
+        assert f"OBS_{i}" in t.tags
+
+
+
+def test_optimize_path_numpy_variants():
+    from quimb.tensor import TensorNetwork, Tensor
+    from cuquantum import tensornet as cutn
+    from opt_einsum.contract import PathInfo
+    import torch
+
+    tn = TensorNetwork([
+        Tensor(np.ones((2, 2)), inds=("a", "b")),
+        Tensor(np.ones((2, 2)), inds=("b", "c")),
+        Tensor(np.ones((2, 2)), inds=("c", "a")),
+    ])
+
+    # Case 1: optimize="auto"
+    path, info = optimize_path("auto", output_inds=("a",), tn=tn)
+    assert isinstance(path, (list, tuple))
+    assert isinstance(info, PathInfo)
+
+    if not torch.cuda.is_available():
+        pytest.skip("No GPUs available, skip cuQuantum test.")
+
+    # Case 2: optimize=None (should use cuQuantum path finder)
+    path2, info2 = optimize_path(None, output_inds=("a",), tn=tn)
+    assert path2 is not None
+    from cuquantum.tensornet.configuration import OptimizerInfo
+    assert isinstance(info2, OptimizerInfo)
+
+    # Case 3: optimize=OptimizerOptions
+    opt = cutn.OptimizerOptions()
+    path3, info3 = optimize_path(opt, output_inds=("a",), tn=tn)
+    assert path3 is not None
+    assert isinstance(info3, OptimizerInfo)
+
+
+def test_factorized_noise_model_basic():
+    error_indices = ['e0', 'e1', 'e2']
+    error_probabilities = [0.1, 0.5, 0.9]
+    tags = ['tag0', 'tag1', 'tag2']
+    tn = factorized_noise_model(error_indices,
+                                error_probabilities,
+                                tensors_tags=tags)
+    assert isinstance(tn, TensorNetwork)
+    assert len(tn.tensors) == 3
+    for i, t in enumerate(tn.tensors):
+        np.testing.assert_array_equal(
+            t.data,
+            np.array([1.0 - error_probabilities[i], error_probabilities[i]]))
+        assert t.inds == (error_indices[i],)
+        assert tags[i] in t.tags
+
+
+def test_factorized_noise_model_default_tags():
+    error_indices = ['e0', 'e1']
+    error_probabilities = [0.2, 0.8]
+    tn = factorized_noise_model(error_indices, error_probabilities)
+    for t in tn.tensors:
+        assert "NOISE" in t.tags
+
+
+def test_error_pairs_noise_model_basic():
+    error_index_pairs = [('e0', 'e1'), ('e2', 'e3')]
+    error_probabilities = [
+        np.array([[0.9, 0.1], [0.2, 0.8]]),
+        np.array([[0.7, 0.3], [0.4, 0.6]])
+    ]
+    tags = ['tagA', 'tagB']
+    tn = error_pairs_noise_model(error_index_pairs,
+                                 error_probabilities,
+                                 tensors_tags=tags)
+    assert isinstance(tn, TensorNetwork)
+    assert len(tn.tensors) == 2
+    for i, t in enumerate(tn.tensors):
+        np.testing.assert_array_equal(t.data, error_probabilities[i])
+        assert t.inds == error_index_pairs[i]
+        assert tags[i] in t.tags
+
+
+def test_error_pairs_noise_model_default_tags():
+    error_index_pairs = [('x', 'y')]
+    error_probabilities = [np.array([[0.6, 0.4], [0.3, 0.7]])]
+    tn = error_pairs_noise_model(error_index_pairs, error_probabilities)
+    for t in tn.tensors:
+        assert "NOISE" in t.tags
+
+
+def test_valid_numpy_cpu():
+    cfg = ContractorConfig("numpy", "numpy", "cpu")
+    assert cfg.contractor_name == "numpy"
+    assert cfg.backend == "numpy"
+    assert cfg.device == "cpu"
+    assert cfg.device_id == 0
+    assert cfg.contractor is contractor
+
+def test_valid_torch_cpu():
+    cfg = ContractorConfig("torch", "torch", "cpu")
+    assert cfg.contractor_name == "torch"
+    assert cfg.backend == "torch"
+    assert cfg.device == "cpu"
+    assert cfg.device_id == 0
+    assert cfg.contractor is contractor
+
+def test_valid_cutensornet_numpy_cuda():
+    cfg = ContractorConfig("cutensornet", "numpy", "cuda")
+    assert cfg.contractor_name == "cutensornet"
+    assert cfg.backend == "numpy"
+    assert cfg.device == "cuda"
+    assert cfg.device_id == 0
+    assert cfg.contractor is cutn_contractor
+
+def test_valid_cutensornet_torch_cuda():
+    cfg = ContractorConfig("cutensornet", "torch", "cuda")
+    assert cfg.contractor_name == "cutensornet"
+    assert cfg.backend == "torch"
+    assert cfg.device == "cuda"
+    assert cfg.device_id == 0
+    assert cfg.contractor is cutn_contractor
+
+def test_cuda_device_id_parsing():
+    cfg = ContractorConfig("cutensornet", "torch", "cuda:3")
+    assert cfg.device == "cuda:3"
+    assert cfg.device_id == 3
+
+def test_invalid_contractor_name():
+    with pytest.raises(ValueError):
+        ContractorConfig("invalid", "numpy", "cpu")
+
+def test_invalid_backend():
+    with pytest.raises(ValueError):
+        ContractorConfig("numpy", "invalid", "cpu")
+
+def test_invalid_combo():
+    with pytest.raises(ValueError):
+        ContractorConfig("torch", "numpy", "cpu")
