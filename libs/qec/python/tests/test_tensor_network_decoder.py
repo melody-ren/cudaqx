@@ -160,7 +160,7 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
     from cuquantum.tensornet.configuration import OptimizerInfo
-    import torch
+    import cupy
 
     # Simple code setup
     H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
@@ -177,7 +177,7 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     assert decoder.slicing_single is not None
     assert isinstance(info, PathInfo)
 
-    if not torch.cuda.is_available():
+    if not cupy.cuda.is_available():
         pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # optimize=cuQuantum OptimizerOptions
@@ -209,7 +209,7 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     noise = np.random.uniform(0.01, 0.2, size=n_errors).tolist()
 
     import cudaq_qec as qec
-    import torch
+    import cupy
 
     # Provided expected results
     expected = [
@@ -235,8 +235,9 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     batch = batch.astype(np.float64, copy=False)  # Ensure float64 dtype
 
     for contractor, dtype, device, backend in contractors:
-        if "cuda" in device and not torch.cuda.is_available():
+        if "cuda" in device and not cupy.cuda.is_available():
             # Skip cutensornet tests if no GPU is available
+            pytest.skip("No GPUs available, skip cuQuantum test.")
             continue
         try:
             decoder.set_contractor(contractor, device, backend, dtype=dtype)
@@ -407,7 +408,7 @@ def test_optimize_path_numpy_variants():
     from quimb.tensor import TensorNetwork, Tensor
     from cuquantum import tensornet as cutn
     from opt_einsum.contract import PathInfo
-    import torch
+    import cupy
 
     tn = TensorNetwork([
         Tensor(np.ones((2, 2)), inds=("a", "b")),
@@ -420,7 +421,7 @@ def test_optimize_path_numpy_variants():
     assert isinstance(path, (list, tuple))
     assert isinstance(info, PathInfo)
 
-    if not torch.cuda.is_available():
+    if not cupy.cuda.is_available():
         pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # Case 2: optimize=None (should use cuQuantum path finder)
