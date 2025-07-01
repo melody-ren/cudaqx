@@ -333,7 +333,14 @@ class TensorNetworkDecoder:
 
         qec.Decoder.__init__(self, H)
 
-        if cupy.cuda.is_available() and "cuda" in device:
+        try:
+            gpu_available = cupy.cuda.is_available()
+        except cupy.cuda.runtime.CUDARuntimeError:
+            gpu_available = False
+            print("CUDA driver error on first check, assuming no GPU or insufficient driver.")
+
+
+        if gpu_available and "cuda" in device:
             contractor_name = "cutensornet"
             backend = "numpy"
         else:

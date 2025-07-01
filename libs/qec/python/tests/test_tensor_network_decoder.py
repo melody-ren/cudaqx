@@ -19,6 +19,18 @@ from cudaq_qec.plugins.decoders.tensor_network_utils.contractors import (
     optimize_path, cutn_contractor, ContractorConfig, contractor, cutn_contractor)
 from cudaq_qec.plugins.decoders.tensor_network_utils.noise_models import factorized_noise_model, error_pairs_noise_model
 
+
+def is_nvidia_gpu_available():
+    import cupy
+    try:
+        return cupy.cuda.is_available()
+    except cupy.cuda.runtime.CUDARuntimeError:
+        # The nvidia-smi command is not found, indicating no NVIDIA GPU drivers
+        return False
+    return False
+
+
+
 def make_simple_code():
     # [[1, 1, 0], [0, 1, 1]] parity check, 1 logical, depolarizing noise
     H = np.array([[1, 1, 0], [0, 1, 1]])
@@ -39,8 +51,7 @@ def test_decoder_init_and_attributes():
     assert isinstance(decoder.full_tn, TensorNetwork)
     assert hasattr(decoder, "noise_model")
 
-    import cupy
-    if cupy.cuda.is_available():
+    if is_nvidia_gpu_available():
         assert decoder.contractor_config.contractor_name == "cutensornet"
         assert decoder.contractor_config.backend == "numpy"
         assert decoder.contractor_config.device == "cuda"
@@ -177,7 +188,7 @@ def test_TensorNetworkDecoder_optimize_path_all_variants():
     assert decoder.slicing_single is not None
     assert isinstance(info, PathInfo)
 
-    if not cupy.cuda.is_available():
+    if not is_nvidia_gpu_available():
         pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # optimize=cuQuantum OptimizerOptions
@@ -235,9 +246,9 @@ def test_decoder_batch_vs_single_and_expected_results_with_contractors():
     batch = batch.astype(np.float64, copy=False)  # Ensure float64 dtype
 
     for contractor, dtype, device, backend in contractors:
-        if "cuda" in device and not cupy.cuda.is_available():
+        if "cuda" in device and not is_nvidia_gpu_available():
             # Skip cutensornet tests if no GPU is available
-            pytest.skip("No GPUs available, skip cuQuantum test.")
+            print(f"Skipping contractor {contractor} ({dtype}, {device}): No GPU available.")
             continue
         try:
             decoder.set_contractor(contractor, device, backend, dtype=dtype)
@@ -421,7 +432,7 @@ def test_optimize_path_numpy_variants():
     assert isinstance(path, (list, tuple))
     assert isinstance(info, PathInfo)
 
-    if not cupy.cuda.is_available():
+    if not is_nvidia_gpu_available():
         pytest.skip("No GPUs available, skip cuQuantum test.")
 
     # Case 2: optimize=None (should use cuQuantum path finder)
