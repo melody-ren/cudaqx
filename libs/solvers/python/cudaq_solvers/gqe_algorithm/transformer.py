@@ -15,6 +15,11 @@ from .loss import ExpLogitMatching, GFlowLogitMatching
 
 
 def get_device():
+    """Determine the appropriate device for tensor operations.
+    
+    Returns:
+        str: 'cuda' if GPU available, 'mps' for Apple Silicon, 'cpu' otherwise
+    """
     if torch.cuda.is_available():
         return 'cuda'
     elif torch.backends.mps.is_available():
@@ -23,12 +28,32 @@ def get_device():
 
 
 class SmallConfig(GPT2Config):
+    """Reduced-size configuration for GPT2 model.
+    
+    Uses fewer layers (6) and attention heads (6) than the default GPT2
+    configuration, resulting in a smaller model that trains faster.
+    
+    Args:
+        **kwargs: Additional GPT2 configuration parameters
+    """
 
     def __init__(self, **kwargs):
         super().__init__(n_layer=6, n_head=6, **kwargs)
 
 
 class Transformer(LightningModule):
+    """GPT2-based transformer model for quantum operator selection.
+    
+    This model learns to select quantum operators from a pool to minimize
+    a given cost function. It can be configured to use either a full-size
+    or reduced-size architecture.
+    
+    Args:
+        cfg: Configuration object containing model parameters
+        cost: Cost function to evaluate operator sequences
+        loss: Loss function type ('exp' or 'gflow')
+        numQPUs: Number of QPUs available for cost evaluation
+    """
 
     def __init__(self, cfg, cost, loss="exp", numQPUs=1):
         super().__init__()
@@ -58,19 +83,56 @@ class Transformer(LightningModule):
         self._cost = cost
 
     def generate_logits(self, idx):
+        """Generate logits for the next token given input indices.
+        
+        Args:
+            idx: Input token indices
+            
+        Returns:
+            torch.Tensor: Logits for next token prediction
+        """
         logits = self.transformer(idx)[0]
         return logits
 
     def set_cost(self, cost):
+        """Set the cost function used to evaluate operator sequences.
+        
+        Args:
+            cost: New cost function to use
+        """
         self._cost = cost
 
     def gather(self, idx, logits_base):
+        """Gather logits for specific indices from base logits.
+        
+        Args:
+            idx: Indices to gather logits for
+            logits_base: Base logits to gather from
+            
+        Returns:
+            torch.Tensor: Gathered logits
+        """
         b_size = idx.shape[0]
         return torch.gather(logits_base, 2, idx.reshape(b_size, -1,
                                                         1)).reshape(b_size, -1)
 
     @torch.no_grad()
     def computeCost(self, idx_output, pool, **kwargs):
+        """Compute cost for given operator sequences.
+        
+        Supports distributed computation using MPI if available.
+        
+        Args:
+            idx_output: Indices of selected operators
+            pool: Pool of quantum operators
+            **kwargs: Additional arguments passed to cost function
+            
+        Returns:
+            torch.Tensor: Computed costs for each sequence
+            
+        Raises:
+            RuntimeError: If cost function returns invalid type
+        """
         res = []
         if cudaq.mpi.is_initialized():
             rank = cudaq.mpi.rank()
@@ -116,6 +178,21 @@ class Transformer(LightningModule):
                    energies=None,
                    numQPUs=None,
                    comm=None):
+        """Perform one training step.
+        
+        Either generates new sequences and computes their costs,
+        or uses provided sequences and energies for training.
+        
+        Args:
+            pool: Pool of quantum operators
+            indices: Optional pre-computed operator indices
+            energies: Optional pre-computed energies
+            numQPUs: Optional number of QPUs to use
+            comm: Optional MPI communicator
+            
+        Returns:
+            tuple: (loss, energies, indices, log_values)
+        """
         log_values = {}
         if energies is not None:
             assert indices is not None

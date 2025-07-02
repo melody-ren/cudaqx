@@ -11,6 +11,12 @@ import torch
 
 
 class LogitMatchingLoss(ABC):
+    """Abstract base class for logit-energy matching loss functions.
+    
+    Loss functions in GQE compare the model's logits (predictions) with
+    computed energies to guide the model toward selecting operator
+    sequences that minimize energy.
+    """
 
     @abstractmethod
     def compute(self, energies, logits_tensor, log_values):
@@ -18,6 +24,15 @@ class LogitMatchingLoss(ABC):
 
 
 class ExpLogitMatching(LogitMatchingLoss):
+    """Simple exponential matching between logits and energies.
+    
+    Computes loss by comparing exponential of negative logits with
+    exponential of negative energies, using a fixed energy offset.
+    
+    Args:
+        energy_offset: Fixed offset added to energies
+        label: Label for logging purposes
+    """
 
     def __init__(self, energy_offset, label) -> None:
         self._label = label
@@ -37,6 +52,18 @@ class ExpLogitMatching(LogitMatchingLoss):
 
 
 class GFlowLogitMatching(LogitMatchingLoss):
+    """Advanced logit-energy matching with learnable offset.
+    
+    Similar to ExpLogitMatching but learns an additional energy offset
+    parameter during training, allowing for better adaptation to the
+    energy scale.
+    
+    Args:
+        energy_offset: Initial energy offset
+        device: Device to place tensors on
+        label: Label for logging purposes
+        nn: Neural network module to register the offset parameter with
+    """
 
     def __init__(self, energy_offset, device, label, nn: torch.nn) -> None:
         self._label = label
