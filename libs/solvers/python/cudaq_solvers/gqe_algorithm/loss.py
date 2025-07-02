@@ -13,7 +13,7 @@ import torch
 class LogitMatchingLoss(ABC):
 
     @abstractmethod
-    def compute(self, energies, logits_tensor, temperature, log_values):
+    def compute(self, energies, logits_tensor, log_values):
         pass
 
 
@@ -24,7 +24,7 @@ class ExpLogitMatching(LogitMatchingLoss):
         self.energy_offset = energy_offset
         self.loss_fn = torch.nn.MSELoss()
 
-    def compute(self, energies, logits_tensor, temperature, log_values):
+    def compute(self, energies, logits_tensor, log_values):
         mean_logits = torch.mean(logits_tensor, 1)
         log_values[f"mean_logits at {self._label}"] = torch.mean(
             mean_logits - self.energy_offset)
@@ -46,7 +46,7 @@ class GFlowLogitMatching(LogitMatchingLoss):
         self.param = torch.nn.Parameter(torch.tensor([0.0]).to(device))
         nn.register_parameter(name="energy_offset", param=self.param)
 
-    def compute(self, energies, logits_tensor, temperature, log_values):
+    def compute(self, energies, logits_tensor, log_values):
         mean_logits = torch.mean(logits_tensor, 1)
         energy_offset = self.energy_offset + self.param / self.normalization
         log_values[f"energy_offset at {self._label}"] = energy_offset

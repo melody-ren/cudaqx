@@ -18,14 +18,6 @@ import cudaq
 torch.set_float32_matmul_precision('high')
 
 
-def train_file(cfg):
-    return f"{cfg.save_dir}{cfg.name}_{cfg.seed}.txt"
-
-
-def trajectory_file(cfg, distance):
-    return f"{cfg.save_dir}{cfg.name}_trajectory_{distance}.ckpt"
-
-
 class TemperatureScheduler(ABC):
 
     @abstractmethod
@@ -83,38 +75,6 @@ class TrajectoryData:
                               map["energies"])
 
 
-class EnergyDataset(Dataset):
-
-    def __init__(self, file_paths, threshold=sys.maxsize):
-        tensor_x = []
-        tensor_y = []
-        self.min_energy = sys.maxsize
-        self.min_indices = None
-        for file_path in file_paths:
-            with open(file_path) as f:
-                for l in f.readlines():
-                    data = TrajectoryData.from_json(l.rstrip())
-                    for indices, energy in zip(data.indices, data.energies):
-                        if threshold < energy:
-                            continue
-                        if self.min_energy > energy:
-                            self.min_energy = energy
-                            self.min_indices = indices
-                        result = [0]
-                        result.extend(indices)
-                        tensor_x.append(result)
-                        tensor_y.append(energy)
-        self.tensors = (torch.tensor(tensor_x, dtype=torch.int64),
-                        torch.tensor(tensor_y, dtype=torch.float))
-
-    def __getitem__(self, index):
-        result = self.tensors[0][index], self.tensors[1][index]
-        return result
-
-    def __len__(self):
-        return self.tensors[0].size(0)
-
-
 class FileMonitor:
 
     def __init__(self):
@@ -132,9 +92,46 @@ class FileMonitor:
                 f.write(f"{l}\n")
 
 
+def validate_config(cfg: ConfigDict):
+    """Validate all configuration parameters for GQE.
+    
+    Args:
+        cfg: Configuration object to validate
+        
+    Raises:
+        ValueError: If any configuration parameter is invalid
+    """
+    # Basic parameters
+    if cfg.num_samples <= 0:
+        raise ValueError("num_samples must be positive")
+    if cfg.max_iters <= 0:
+        raise ValueError("max_iters must be positive")
+    if cfg.ngates <= 0:
+        raise ValueError("ngates must be positive")
+
+    # Learning parameters
+    if cfg.lr <= 0:
+        raise ValueError("learning rate must be positive")
+    if cfg.grad_norm_clip <= 0:
+        raise ValueError("grad_norm_clip must be positive")
+
+    # Temperature parameters
+    if cfg.temperature <= 0:
+        raise ValueError("temperature must be positive")
+    if cfg.del_temperature == 0:
+        raise ValueError("del_temperature cannot be zero")
+
+    # Dropout parameters (must be probabilities)
+    if not (0 <= cfg.resid_pdrop <= 1):
+        raise ValueError("resid_pdrop must be between 0 and 1")
+    if not (0 <= cfg.embd_pdrop <= 1):
+        raise ValueError("embd_pdrop must be between 0 and 1")
+    if not (0 <= cfg.attn_pdrop <= 1):
+        raise ValueError("attn_pdrop must be between 0 and 1")
+
+
 def get_default_config():
     cfg = ConfigDict()
-    cfg.verbose = False
     cfg.num_samples = 5  # akin to batch size
     cfg.max_iters = 100
     cfg.ngates = 20
@@ -147,8 +144,6 @@ def get_default_config():
     cfg.resid_pdrop = 0.0
     cfg.embd_pdrop = 0.0
     cfg.attn_pdrop = 0.0
-    cfg.check_points = {}
-    cfg.dry = False
     cfg.small = False
     cfg.cache = True
     cfg.save_dir = "./output/"
@@ -170,15 +165,11 @@ def __internal_run_gqe(temperature_scheduler: TemperatureScheduler,
     min_indices = None
     for epoch in range(cfg.max_iters):
         optimizer.zero_grad()
-        l = None
         start = time.time()
         loss, energies, indices, log_values = model.train_step(pool)
         print('epoch', epoch, 'model.train_step time:',
               time.time() - start, torch.min(energies))
-        if l is None:
-            l = loss
-        else:
-            l = l + loss
+
         monitor.record(epoch, loss, energies, indices)
         for e, indices in zip(energies, indices):
             energy = e.item()
@@ -196,12 +187,7 @@ def __internal_run_gqe(temperature_scheduler: TemperatureScheduler,
         else:
             model.temperature += cfg.del_temperature
     model.set_cost(None)
-    # state = {"model": model, "optimizer": optimizer, "hparams": model.hparams}
-    # fabric.save(cfg.save_dir + f"checkpoint_{distance}.ckpt", state)
-    # if cfg.save_data:
-    # monitor.save(trajectory_file(cfg, distance))
     min_indices = min_indices.cpu().numpy().tolist()
-    # return min_energy, indices
     fabric.log('circuit', json.dumps(min_indices))
     return min_energy, min_indices
 
@@ -216,6 +202,8 @@ def gqe(cost, pool, config=None, **kwargs):
         ]
     else:
         cfg = config
+
+    validate_config(cfg)
 
     # Don't let someone override the vocab_size
     cfg.vocab_size = len(pool)

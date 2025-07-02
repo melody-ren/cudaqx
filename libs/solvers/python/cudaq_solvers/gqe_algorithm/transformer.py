@@ -130,8 +130,7 @@ class Transformer(LightningModule):
         logits_tensor = self.gather(idx_output, logits_base)
         allLogits = logits_tensor
 
-        loss = self.loss.compute(energies, allLogits, self.temperature,
-                                 log_values)
+        loss = self.loss.compute(energies, allLogits, log_values)
         log_values[f"loss at {self._label}"] = loss
         return loss, energies, idx_output, log_values
 
