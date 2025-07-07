@@ -48,6 +48,14 @@ ${python} -m pytest -v -s libs/qec/python/tests/
 
 # Solvers library
 # ======================================
+# Test the base solvers library without optional dependencies
+solver_wheel=$(ls /wheels/cudaq_solvers-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
+${python} -m pip install "${solver_wheel}"
+${python} -m pytest -v -s libs/solvers/python/tests/ --ignore=libs/solvers/python/tests/test_gqe.py
 
-${python} -m pip install /wheels/cudaq_solvers-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl
-${python} -m pytest libs/solvers/python/tests/
+# Test the solvers library with optional dependencies
+# Install the GQE solver dependencies
+${python} -m pip install torch lightning ml_collections mpi4py transformers
+# Install the GQE solver
+${python} -m pip install "${solver_wheel}[gqe]"
+${python} -m pytest -v -s libs/solvers/python/tests/test_gqe.py
