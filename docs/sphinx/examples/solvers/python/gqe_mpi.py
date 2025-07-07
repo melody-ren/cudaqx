@@ -9,8 +9,13 @@
 import cudaq, cudaq_solvers as solvers
 from cudaq import spin
 
+# Check if NVIDIA GPUs are available and set target accordingly
+try:
+    cudaq.set_target('nvidia', option='mqpu')
+except RuntimeError:
+    # Fall back to CPU target
+    cudaq.set_target('qpp-cpu')  
 cudaq.mpi.initialize()
-cudaq.set_target('nvidia', option='mqpu')
 
 qubit_count = 2
 
