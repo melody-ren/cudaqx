@@ -14,7 +14,7 @@ try:
     cudaq.set_target('nvidia', option='mqpu')
 except RuntimeError:
     # Fall back to CPU target
-    cudaq.set_target('qpp-cpu')  
+    cudaq.set_target('qpp-cpu')
 cudaq.mpi.initialize()
 
 qubit_count = 2
