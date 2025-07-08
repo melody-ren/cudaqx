@@ -308,7 +308,29 @@ void bindDecoder(py::module &mod) {
         cudaqx::tensor<uint8_t> tensor_H(shape);
         tensor_H.borrow(static_cast<uint8_t *>(buf.ptr), shape);
 
-        return get_decoder(name, tensor_H, hetMapFromKwargs(options));
+        try {
+          return get_decoder(name, tensor_H, hetMapFromKwargs(options));
+        } catch (const std::runtime_error &e) {
+          const std::string missingPrefix = "Unknown decoder: " + name;
+          const std::string msg = e.what();
+          // Only intercept the “unknown decoder” error
+          if (msg.rfind(missingPrefix, 0) == 0) {
+            if (name == "tensor_network_decoder") {
+              throw std::runtime_error(
+                  "Decoder 'tensor_network_decoder' is not available. "
+                  "To enable it, install the extra dependencies:\n\n"
+                  "    pip install cudaq_qec[tn_decoder]\n");
+            }
+            // Generic unknown-decoder message for others
+            throw std::runtime_error(
+                "Decoder '" + name +
+                "' is not available as a plugin or built-in. "
+                "Please check the decoder name or install the appropriate "
+                "extra.");
+          }
+          // Any other runtime_error (e.g. malformed PCM) just bubbles up
+          throw;
+        }
       },
       "Get a decoder by name with a given parity check matrix"
       "and optional decoder-specific parameters. Note: the parity check matrix "

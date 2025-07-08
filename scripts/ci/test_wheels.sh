@@ -40,11 +40,16 @@ fi
 # QEC library
 # ======================================
 
-${python} -m pip install quimb opt_einsum torch
-# Install QEC library with tensor network decoder
+# Install the base QEC library without optional components
 wheel_file=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
+${python} -m pip install "${wheel_file}"
+# Test the base QEC library without optional components
+${python} -m pytest -v -s libs/qec/python/tests/ --ignore=libs/qec/python/tests/test_tensor_network_decoder.py
+
+# Install QEC library with tensor network decoder
+${python} -m pip install quimb opt_einsum torch
 ${python} -m pip install "${wheel_file}[tn_decoder]"
-${python} -m pytest -v -s libs/qec/python/tests/
+${python} -m pytest -v -s libs/qec/python/tests/test_tensor_network_decoder.py
 
 # Solvers library
 # ======================================
