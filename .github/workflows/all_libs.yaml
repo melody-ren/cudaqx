@@ -57,7 +57,7 @@ jobs:
 
       - name: Install build requirements
         run: |
-          apt install -y --no-install-recommends gfortran libblas-dev libcusolver-dev-12-0
+          apt install -y --no-install-recommends gfortran libblas-dev libcusolver-dev-12-0 libopenmpi-dev openmpi-bin
 
       - name: Build
         id: build
@@ -80,7 +80,7 @@ jobs:
       # ========================================================================
  
       - name: Install python requirements
-        run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 quimb opt_einsum torch
+        run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 quimb opt_einsum torch lightning ml_collections mpi4py transformers
 
       - name: Run Python tests
         run: cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests

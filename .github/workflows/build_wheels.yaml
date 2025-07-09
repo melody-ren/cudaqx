@@ -196,7 +196,7 @@ jobs:
       - name: Install requirements
         run: |
           bash .github/workflows/scripts/install_git_cli.sh
-          apt install -y --no-install-recommends libgfortran5 unzip
+          apt install -y --no-install-recommends libgfortran5 unzip libopenmpi-dev openmpi-bin
   
       - name: Download CUDA-Q wheels
         if: ${{ inputs.cudaq_wheels == 'Custom' }}
@@ -258,7 +258,7 @@ jobs:
       - name: Install requirements
         run: |
           bash .github/workflows/scripts/install_git_cli.sh
-          apt install -y --no-install-recommends libgfortran5 unzip
+          apt install -y --no-install-recommends libgfortran5 unzip libopenmpi-dev openmpi-bin
           #echo 'core.%p' | tee /proc/sys/kernel/core_pattern
           #echo "Running cat /proc/sys/kernel/core_pattern"
           #cat /proc/sys/kernel/core_pattern

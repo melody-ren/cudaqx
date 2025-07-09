@@ -93,7 +93,7 @@ if (CUDAQX_INCLUDE_TESTS)
     add_custom_target(run_python_tests
       COMMAND ${CMAKE_COMMAND} -E env
               PYTHONPATH="${CUDAQ_INSTALL_DIR}:${CMAKE_BINARY_DIR}/python"
-              pytest -v --capture=tee-sys ${PYTHON_TEST_DIRS}
+              pytest -v ${PYTHON_TEST_DIRS}
       DEPENDS cudaqx-pymodules
       WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
