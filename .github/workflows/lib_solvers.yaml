@@ -83,7 +83,11 @@ jobs:
         run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 torch lightning ml_collections mpi4py transformers
 
       - name: Run Python tests
-        run: cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
+        run: |
+          # First try to import the modules to check for import errors
+          python3 -c "import cudaq_solvers; print('cudaq_solvers imported successfully')"
+          # Run the tests with verbose output
+          PYTHONPATH=${{ steps.build.outputs.build-dir }}/lib/python cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests -- ARGS="-v"
 
       # ========================================================================
       # Run example tests
