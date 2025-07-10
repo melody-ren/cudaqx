@@ -10,8 +10,7 @@ from .transformer import Transformer
 import torch
 import lightning as L
 from abc import ABC, abstractmethod
-import math, json, sys, time
-from torch.utils.data import Dataset
+import math, json, sys, time, os
 from ml_collections import ConfigDict
 import cudaq
 
@@ -160,6 +159,8 @@ class FileMonitor:
         Args:
             path: Path to save the trajectory data file
         """
+        if os.path.exists(path):
+            print(f"Warning: Overwriting existing trajectory file at {path}")
         with open(path, 'w') as f:
             for l in self.lines:
                 f.write(f"{l}\n")
@@ -212,7 +213,6 @@ def get_default_config():
         ConfigDict: Configuration object with default values set
     """
     cfg = ConfigDict()
-    cfg.verbose = False
     cfg.num_samples = 5  # akin to batch size
     cfg.max_iters = 100
     cfg.ngates = 20
@@ -225,11 +225,13 @@ def get_default_config():
     cfg.resid_pdrop = 0.0
     cfg.embd_pdrop = 0.0
     cfg.attn_pdrop = 0.0
-    cfg.check_points = {}
     cfg.dry = False
     cfg.small = False
-    cfg.cache = True
-    cfg.save_dir = "./output/"
+    cfg.use_fabric_logging = False  # Whether to enable fabric logging
+    cfg.fabric_logger = None  # Fabric logger
+    cfg.save_trajectory = False  # Whether to save trajectory data
+    cfg.trajectory_file_path = "gqe_logs/gqe_trajectory.json"  # Path to save trajectory data
+    cfg.verbose = False
     return cfg
 
 
@@ -247,32 +249,51 @@ def __internal_run_gqe(temperature_scheduler: TemperatureScheduler,
     Returns:
         tuple: (minimum energy found, corresponding operator indices)
     """
-    fabric = L.Fabric(accelerator="auto", devices=1)  # 1 device for now
+    # Configure Fabric with optional logging
+    fabric_kwargs = {"accelerator": "auto", "devices": 1}
+    if cfg.use_fabric_logging:
+        if cfg.fabric_logger is None:
+            raise ValueError(
+                "Fabric Logger is not set. Please set it in the config by providing a logger to `cfg.fabric_logger`."
+            )
+        fabric_kwargs["loggers"] = [cfg.fabric_logger]
+    else:
+        fabric_kwargs["loggers"] = False
+
+    fabric = L.Fabric(**fabric_kwargs)
     fabric.seed_everything(cfg.seed)
     fabric.launch()
-    monitor = FileMonitor()
+    if cfg.save_trajectory:
+        monitor = FileMonitor()
+    else:
+        monitor = None
     model, optimizer = fabric.setup(model, optimizer)
     model.mark_forward_method('train_step')
     pytorch_total_params = sum(
         p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"total trainable params: {pytorch_total_params / 1e6:.2f}M")
+    if cfg.verbose:
+        print(f"total trainable params: {pytorch_total_params / 1e6:.2f}M")
     min_energy = sys.maxsize
     min_indices = None
     for epoch in range(cfg.max_iters):
         optimizer.zero_grad()
         start = time.time()
         loss, energies, indices, log_values = model.train_step(pool)
-        print('epoch', epoch, 'model.train_step time:',
-              time.time() - start, torch.min(energies))
-        monitor.record(epoch, loss, energies, indices)
+        if cfg.verbose:
+            print('epoch', epoch, 'loss', loss, 'model.train_step time:',
+                  time.time() - start, torch.min(energies))
+        if monitor is not None:
+            monitor.record(epoch, loss, energies, indices)
         for e, indices in zip(energies, indices):
             energy = e.item()
             if energy < min_energy:
                 min_energy = e.item()
                 min_indices = indices
-        log_values[f"min_energy at"] = min_energy
-        log_values[f"temperature at"] = model.temperature
-        fabric.log_dict(log_values, step=epoch)
+        if cfg.use_fabric_logging:
+            log_values[f"min_energy at"] = min_energy
+            log_values[f"temperature at"] = model.temperature
+            log_values[f"loss at"] = loss
+            fabric.log_dict(log_values, step=epoch)
         fabric.backward(loss)
         fabric.clip_gradients(model, optimizer, max_norm=cfg.grad_norm_clip)
         optimizer.step()
@@ -282,7 +303,10 @@ def __internal_run_gqe(temperature_scheduler: TemperatureScheduler,
             model.temperature += cfg.del_temperature
     model.set_cost(None)
     min_indices = min_indices.cpu().numpy().tolist()
-    fabric.log('circuit', json.dumps(min_indices))
+    if cfg.use_fabric_logging:
+        fabric.log('circuit', json.dumps(min_indices))
+    if cfg.save_trajectory:
+        monitor.save(cfg.trajectory_file_path)
     return min_energy, min_indices
 
 
@@ -301,8 +325,8 @@ def gqe(cost, pool, config=None, **kwargs):
     Returns:
         tuple: (minimum energy found, corresponding operator indices)
     """
-    print("Starting GQE function...")
     cfg = get_default_config()
+
     if config == None:
         [
             setattr(cfg, a, kwargs[a])

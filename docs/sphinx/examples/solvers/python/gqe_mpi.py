@@ -8,6 +8,8 @@
 
 import cudaq, cudaq_solvers as solvers
 from cudaq import spin
+from lightning.fabric.loggers import CSVLogger
+from cudaq_solvers.gqe_algorithm.gqe import get_default_config
 
 # Check if NVIDIA GPUs are available and set target accordingly
 try:
@@ -59,8 +61,6 @@ def kernel(qcount: int, coeffs: list[float], words: list[cudaq.pauli_word]):
 
 # cost function for GQE
 def cost(sampled_ops: list[cudaq.SpinOperator], qpu_id: int = 0):
-    print(f"[Rank {cudaq.mpi.rank()}] Cost function running on QPU ID {qpu_id}")
-
     full_coeffs = []
     full_words = []
     for op in sampled_ops:
@@ -77,7 +77,13 @@ def cost(sampled_ops: list[cudaq.SpinOperator], qpu_id: int = 0):
 
 
 # Run GQE
-minE, best_ops = solvers.gqe(cost, pool, max_iters=25, ngates=4)
+cfg = get_default_config()
+cfg.use_fabric_logging = True
+logger = CSVLogger("gqe_logs/gqe_mpi.csv")
+cfg.fabric_logger = logger
+cfg.save_trajectory = True
+cfg.verbose = True
+minE, best_ops = solvers.gqe(cost, pool, max_iters=25, ngates=4, config=cfg)
 
 if cudaq.mpi.rank() == 0:
     print(f'Ground Energy = {minE}')
