@@ -53,7 +53,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt update && apt install -y --no-install-recommends zip unzip patchelf openmpi-bin libopenmpi3
+          apt update && apt install -y --no-install-recommends zip unzip patchelf
 
       - name: Fetch assets and set QEC_EXTERNAL_DECODERS
         env:
@@ -111,10 +111,13 @@ jobs:
       # ========================================================================
  
       - name: Install python requirements
+        env:
+          LD_LIBRARY_PATH: ${{ env.MPI_PATH }}/lib:${{ env.LD_LIBRARY_PATH }}
         run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 quimb opt_einsum torch lightning ml_collections mpi4py transformers
 
       - name: Run Python tests
         env:
+          LD_LIBRARY_PATH: ${{ env.MPI_PATH }}/lib:${{ env.LD_LIBRARY_PATH }}
           OMPI_MCA_pml: ob1
         run: |
           if [[ -n "${{ env.QEC_EXTERNAL_DECODERS }}" ]]; then
@@ -131,6 +134,7 @@ jobs:
  
       - name: Run example tests
         env:
+          LD_LIBRARY_PATH: ${{ env.MPI_PATH }}/lib:${{ env.LD_LIBRARY_PATH }}
           OMPI_MCA_pml: ob1
         run: |
           ln -s /usr/local/cudaq /cudaq-install
