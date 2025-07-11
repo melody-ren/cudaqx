@@ -84,12 +84,8 @@ jobs:
 
       - name: Run Python tests
         run: |
-          echo "Trying to find cudaq_solvers:"
-          python3 -c "import importlib.util; print(importlib.util.find_spec('cudaq_solvers'))"
-          
-          echo "Checking install directory Python modules:"
-          ls -R ~/.cudaqx/
-          export PYTHONPATH=~/.cudaqx/build/python:/cudaq-install/:$PYTHONPATH
+
+          export PYTHONPATH=~/.cudaqx/:/cudaq-install/:$PYTHONPATH
           echo "PYTHONPATH: $PYTHONPATH"
           cd $GITHUB_WORKSPACE/libs/solvers/python/tests
           pytest -vv
