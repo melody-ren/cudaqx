@@ -40,29 +40,28 @@ fi
 # QEC library
 # ======================================
 
-wheel_file=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
+qec_wheel=$(ls /wheels/cudaq_qec-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
 # If Python version is 3.10, then install without tensor network decoder.
 # Otherwise, install with the tensor network decoder.
 if [ $python_version == "3.10" ]; then
   echo "Installing QEC library without tensor network decoder"
-  ${python} -m pip install "${wheel_file}"
+  ${python} -m pip install "${qec_wheel}"
   ${python} -m pytest -v -s libs/qec/python/tests/ --ignore=libs/qec/python/tests/test_tensor_network_decoder.py
 else
   echo "Installing QEC library with tensor network decoder"
-  ${python} -m pip install "${wheel_file}[tn_decoder]"
+  ${python} -m pip install "${qec_wheel}[tn_decoder]"
   ${python} -m pytest -v -s libs/qec/python/tests/
 fi
 
 # Solvers library
 # ======================================
 # Test the base solvers library without optional dependencies
+echo "Installing Solvers library without GQE"
 solver_wheel=$(ls /wheels/cudaq_solvers-*-cp${python_version_no_dot}-cp${python_version_no_dot}-*.whl)
 ${python} -m pip install "${solver_wheel}"
 ${python} -m pytest -v -s libs/solvers/python/tests/ --ignore=libs/solvers/python/tests/test_gqe.py
 
-# Test the solvers library with optional dependencies
-# Install the GQE solver dependencies
-${python} -m pip install torch lightning ml_collections mpi4py transformers
-# Install the GQE solver
+# Test the solvers library with GQE
+echo "Installing Solvers library with GQE"
 ${python} -m pip install "${solver_wheel}[gqe]"
-${python} -m pytest -v -s libs/solvers/python/tests/test_gqe.py
+${python} -m pytest -v -s libs/solvers/python/tests
