@@ -78,12 +78,15 @@ jobs:
       # ========================================================================
       # Run python tests
       # ========================================================================
- 
+
       - name: Install python requirements
+        env:
+          LD_LIBRARY_PATH: /usr/local/openmpi/lib:${{ env.LD_LIBRARY_PATH }}
         run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 torch lightning ml_collections mpi4py transformers pytest
 
       - name: Run Python tests
         env:
+          LD_LIBRARY_PATH: /usr/local/openmpi/lib:${{ env.LD_LIBRARY_PATH }}
           OMPI_MCA_pml: ob1
         run: cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
 
@@ -93,5 +96,6 @@ jobs:
 
       - name: Run example tests
         env:
+          LD_LIBRARY_PATH: /usr/local/openmpi/lib:${{ env.LD_LIBRARY_PATH }}
           OMPI_MCA_pml: ob1
         run: bash scripts/ci/test_examples.sh solvers
