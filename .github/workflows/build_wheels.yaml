@@ -258,7 +258,7 @@ jobs:
       - name: Install requirements
         run: |
           bash .github/workflows/scripts/install_git_cli.sh
-          apt install -y --no-install-recommends libgfortran5 unzip mpich libmpich-dev
+          apt install -y --no-install-recommends libgfortran5 unzip openmpi-bin libopenmpi3
           #echo 'core.%p' | tee /proc/sys/kernel/core_pattern
           #echo "Running cat /proc/sys/kernel/core_pattern"
           #cat /proc/sys/kernel/core_pattern
