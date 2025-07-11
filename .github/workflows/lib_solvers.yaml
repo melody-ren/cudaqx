@@ -88,7 +88,7 @@ jobs:
           export PYTHONPATH=~/.cudaqx/:/cudaq-install/:$PYTHONPATH
           echo "PYTHONPATH: $PYTHONPATH"
           cd $GITHUB_WORKSPACE/libs/solvers/python/tests
-          pytest -vv
+          pytest -vv -s
 
       # ========================================================================
       # Run example tests
