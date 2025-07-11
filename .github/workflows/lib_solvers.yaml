@@ -83,8 +83,9 @@ jobs:
         run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 torch lightning ml_collections mpi4py transformers pytest
 
       - name: Run Python tests
+        env:
+          OMPI_MCA_pml: ob1
         run: |
-
           export PYTHONPATH=~/.cudaqx/:/cudaq-install/:$PYTHONPATH
           echo "PYTHONPATH: $PYTHONPATH"
           cd $GITHUB_WORKSPACE/libs/solvers/python/tests
