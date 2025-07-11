@@ -57,7 +57,7 @@ jobs:
 
       - name: Install build requirements
         run: |
-          apt install -y --no-install-recommends gfortran libblas-dev libcusolver-dev-12-0 mpich libmpich-dev
+          apt install -y --no-install-recommends gfortran libblas-dev libcusolver-dev-12-0 openmpi-bin libopenmpi3
 
       - name: Build
         id: build
@@ -83,6 +83,8 @@ jobs:
         run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 quimb opt_einsum torch lightning ml_collections mpi4py transformers
 
       - name: Run Python tests
+        env:
+          OMPI_MCA_pml: ob1
         run: cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
 
       # ========================================================================
@@ -90,5 +92,7 @@ jobs:
       # ========================================================================
  
       - name: Run example tests
+        env:
+          OMPI_MCA_pml: ob1
         run: bash scripts/ci/test_examples.sh all 
 
