@@ -76,7 +76,8 @@ jobs:
       # ========================================================================
  
       - name: Install python requirements
-        run: pip install numpy pytest cupy-cuda12x cuquantum-python-cu12 quimb opt_einsum torch
+        # Note: install tensor_network_decoder's dependencies quimb, opt_einsum, and torch when we advance to Python 3.11
+        run: pip install numpy pytest cupy-cuda12x cuquantum-cu12
 
       - name: Run Python tests
         run: cmake --build ${{ steps.build.outputs.build-dir }} --target run_python_tests
