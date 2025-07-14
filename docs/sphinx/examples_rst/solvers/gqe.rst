@@ -7,8 +7,7 @@ GQE employs a generative model to dynamically construct quantum circuits with de
 A notable implementation of GQE is the GPT Quantum Eigensolver (GPT-QE), which uses a transformer-based architecture. This approach combines:
 
 - Pre-training capabilities using existing quantum circuit datasets
-- Ability to learn without prior knowledge (from scratch)
-- Particular effectiveness in electronic structure problems
+- Ability to learn without prior knowledge 
 
 Key features of GQE:
 

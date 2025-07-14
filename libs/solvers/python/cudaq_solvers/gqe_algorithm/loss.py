@@ -27,10 +27,13 @@ class ExpLogitMatching(LogitMatchingLoss):
     """Simple exponential matching between logits and energies.
     
     Computes loss by comparing exponential of negative logits with
-    exponential of negative energies, using a fixed energy offset.
+    exponential of negative energies from circuit evaluation. The energies
+    represent the expectation values of the Hamiltonian problem operator
+    obtained from quantum circuit execution during GPT training.
     
     Args:
-        energy_offset: Fixed offset added to energies
+        energy_offset: Offset added to expectation values of the circuit (Energy)
+                      for numerical stability during training. 
         label: Label for logging purposes
     """
 
