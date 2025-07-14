@@ -30,3 +30,7 @@ CUDA-Q Solvers Python API
 
 .. autofunction:: cudaq_solvers.get_num_qaoa_parameters
 
+.. autofunction:: cudaq_solvers.gqe
+.. autofunction:: cudaq_solvers.gqe_algorithm.gqe.get_default_config
+
+
