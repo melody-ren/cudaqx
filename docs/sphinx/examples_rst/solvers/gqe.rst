@@ -35,7 +35,7 @@ CUDA-Q Solvers provides a high-level interface for running GQE simulations. Here
 
 .. tab:: Python
 
-   .. literalinclude:: ../../examples/solvers/python/gqe_mpi.py
+   .. literalinclude:: ../../examples/solvers/python/gqe_h2.py
       :language: python
       :start-after: [Begin Documentation]
 
