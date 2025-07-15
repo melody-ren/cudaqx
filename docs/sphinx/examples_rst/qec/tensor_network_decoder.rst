@@ -28,26 +28,26 @@ Usage
 
 .. code-block:: python
 
-   from cudaq_qec.plugins.decoders.tensor_network_decoder import TensorNetworkDecoder
-   import numpy as np
+    import cudaq_qec as qec
+    import numpy as np
 
-   # Define code parameters
-   H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
-   logical_obs = np.array([[1, 1, 1]], dtype=np.uint8)
-   noise_model = [0.1, 0.1, 0.1]
+    # Define code parameters
+    H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    logical_obs = np.array([[1, 1, 1]], dtype=np.uint8)
+    noise_model = [0.1, 0.1, 0.1]
 
-   decoder = TensorNetworkDecoder(H, logical_obs, noise_model, dtype="float32", device="cpu")
+    decoder = qec.get_decoder("tensor_network_decoder", H, logical_obs=logical_obs, noise_model=noise_model, dtype="float32", device="cpu")
 
-   # Decode a single syndrome
-   syndrome = [0.0, 1.0]
-   result = decoder.decode(syndrome)
-   print(result.result)
+    # Decode a single syndrome
+    syndrome = [0.0, 1.0]
+    result = decoder.decode(syndrome)
+    print(result.result)
 
-   # Decode a batch of syndromes
-   syndrome_batch = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0]], dtype=np.float32)
-   batch_results = decoder.decode_batch(syndrome_batch)
-   for res in batch_results:
-       print(res.result)
+    # Decode a batch of syndromes
+    syndrome_batch = np.array([[0.0, 0.0], [0.0, 1.0], [1.0, 0.0]], dtype=np.float32)
+    batch_results = decoder.decode_batch(syndrome_batch)
+    for res in batch_results:
+        print(res.result)
 
 Output
 ------

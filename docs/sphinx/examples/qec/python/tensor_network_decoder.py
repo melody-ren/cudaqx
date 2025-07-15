@@ -10,10 +10,14 @@ Requirements:
 - autoray
 - cupy (optional, for GPU acceleration)
 
+These requirements can be installed via pip:
+
+pip install cudaq-qec[tn_decoder]
+
 """
 
 import numpy as np
-from cudaq_qec.plugins.decoders.tensor_network_decoder import TensorNetworkDecoder
+import cudaq_qec as qec
 
 # Example parity check matrix (H) for a [3,1] repetition code
 H = np.array([
@@ -29,7 +33,8 @@ p = 0.1
 noise_model = [p, p, p]
 
 # Instantiate the decoder
-decoder = TensorNetworkDecoder(
+decoder = qec.get_decoder(
+    "tensor_network_decoder",
     H=H,
     logical_obs=logical_obs,
     noise_model=noise_model,
