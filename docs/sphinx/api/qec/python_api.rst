@@ -39,6 +39,12 @@ NVIDIA QLDPC Decoder
 
 .. include:: nv_qldpc_decoder_api.rst
 
+Tensor Network Decoders
+----------------------
+
+.. include:: tensor_network_decoder_api.rst
+
+
 Common
 =============
 
