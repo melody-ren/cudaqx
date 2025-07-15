@@ -1,13 +1,10 @@
 Generative Quantum Eigensolver (GQE)
 -------------------------------------
 
-The GQE algorithm samples and generates circuits from Boltzmann distribution according to the cost function which is defined using the logit matching method.
-
-A notable implementation of GQE is the GPT Quantum Eigensolver (GPT-QE), which uses a transformer-based architecture. 
-This approach combines:
-
-- Pre-training capabilities using existing quantum circuit datasets
-- Ability to learn without prior knowledge 
+The GQE algorithm has presented a novel approach to variational optimization that leverages generative AI. It is an active research topic. 
+A core aspect of this research is with regards to the core cost / loss function the algorithm leverages. The current implementation provides 
+a cost function suitable to small scale simulation. The GQE implementation in CUDA-Q Solvers is based on this paper: `The generative quantum eigensolver 
+(GQE) and its application for ground state search <https://arxiv.org/abs/2401.09253>`_.
 
 GQE Algorithm Overview:
 
@@ -17,7 +14,6 @@ GQE Algorithm Overview:
 4. Update the generative model based on results
 5. Repeat generation and optimization until convergence
 
-The GQE implementation in CUDA-Q Solvers is based on the `GQE paper <https://arxiv.org/abs/2401.09253>`_.
 
 CUDA-Q Solvers Implementation
 +++++++++++++++++++++++++++++
