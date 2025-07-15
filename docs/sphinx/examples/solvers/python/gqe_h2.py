@@ -42,8 +42,12 @@ torch.use_deterministic_algorithms(True)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-# Set target
-cudaq.set_target("nvidia", options='fp64')
+# Check if NVIDIA GPUs are available and set target accordingly
+try:
+    cudaq.set_target('nvidia', options='fp64')
+except RuntimeError:
+    # Fall back to CPU target
+    cudaq.set_target('qpp-cpu')
 
 # Create the molecular hamiltonian
 geometry = [('H', (0., 0., 0.)), ('H', (0., 0., .7474))]
