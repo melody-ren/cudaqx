@@ -159,6 +159,7 @@ class FileMonitor:
         Args:
             path: Path to save the trajectory data file
         """
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         if os.path.exists(path):
             print(f"Warning: Overwriting existing trajectory file at {path}")
         with open(path, 'w') as f:
