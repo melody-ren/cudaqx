@@ -339,7 +339,7 @@ def gqe(cost, pool, config=None, **kwargs):
     """Run the Gradient Quantum Evolution algorithm.
     
     GQE uses a transformer model to learn which quantum operators from a pool
-    should be applied to minimize a given cost function.
+    should be applied to minimize a given cost function. Python-only implementation.
     
     Args:
         cost: Cost function that evaluates operator sequences

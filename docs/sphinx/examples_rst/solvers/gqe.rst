@@ -1,21 +1,13 @@
 Generative Quantum Eigensolver (GQE)
 -------------------------------------
 
-The Generative Quantum Eigensolver (GQE) is a novel hybrid quantum-classical algorithm that leverages classical generative models to produce quantum circuits for finding ground state energies. 
-GQE employs a generative model to dynamically construct quantum circuits with desired properties.
+The GQE algorithm samples and generates circuits from Boltzmann distribution according to the cost function which is defined using the logit matching method.
 
-A notable implementation of GQE is the GPT Quantum Eigensolver (GPT-QE), which uses a transformer-based architecture. This approach combines:
+A notable implementation of GQE is the GPT Quantum Eigensolver (GPT-QE), which uses a transformer-based architecture. 
+This approach combines:
 
 - Pre-training capabilities using existing quantum circuit datasets
 - Ability to learn without prior knowledge 
-
-Key features of GQE:
-
-- Generative approach: Uses classical generative models to produce quantum circuits
-- Flexible learning: Can leverage pre-training or learn from scratch
-- Adaptive optimization: Dynamically constructs and improves circuits during optimization
-- Broad applicability: Extends beyond Hamiltonian simulation to other quantum computing applications
-- Scalable: Can leverage multiple QPUs for parallel evaluation
 
 GQE Algorithm Overview:
 
@@ -40,6 +32,10 @@ CUDA-Q Solvers provides a high-level interface for running GQE simulations. Here
 
 The CUDA-Q Solvers implementation of GQE provides a flexible framework for adaptive circuit construction and optimization. 
 The algorithm can efficiently utilize multiple QPUs through MPI for parallel operator evaluation, making it suitable for larger quantum systems. 
+
+.. note::
+
+   The GQE implementation is a Python-only implementation.
 
 
    
