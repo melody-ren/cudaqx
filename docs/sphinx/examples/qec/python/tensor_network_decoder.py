@@ -7,9 +7,10 @@
 # ============================================================================ #
 import sys
 # Check Python version
+# Remove this check once the pipeline advances to Python 3.11
 if sys.version_info < (3, 11):
     print(
-        "Skipping tensor network decoder example - requires Python 3.11 or higher"
+        "Skipping tensor network decoder example"
     )
     sys.exit(0)
 
