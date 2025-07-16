@@ -97,13 +97,15 @@ Exact Maximum Likelihood Decoding with NVIDIA Tensor Networks Decoder
 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-Starting with CUDA-Q QEC v??, a GPU-accelerated Maximum Likelihood Decoder (MLD) is included with the
+Starting with CUDA-Q QEC v0.4.0, a GPU-accelerated Maximum Likelihood Decoder is included with the
 CUDA-Q QEC library. The library follows the CUDA-Q decoder Python interface.
 At this time, we only support the Python interface for the MLD decoder, which is
 available as :class:`cudaq_qec.plugins.decoders.tensor_network_decoder.TensorNetworkDecoder`.
 (namely :class:`cudaq_qec.Decoder` for Python and
 :cpp:class:`cudaq::qec::decoder` for C++), but as documented in the API sections :ref:`tensor_network_decoder_api_python`, there are many configuration options
-that can be passed to the constructor. 
+that can be passed to the constructor.
+
+In the following example, we show how to use the `TensorNetworkDecoder` class from the `cudaq_qec` library to decode a circuit-level noise problem derived from a Stim surface code circuit.
 
 .. literalinclude:: ../../examples/qec/python/tensor_network_decoder.py
     :language: python

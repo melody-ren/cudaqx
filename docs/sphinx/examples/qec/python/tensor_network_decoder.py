@@ -11,65 +11,62 @@
 Example usage of TensorNetworkDecoder from cudaq_qec.
 
 This script demonstrates how to instantiate and use the tensor network decoder
-for a simple parity check code and logical observable.
+to decode a circuit level noise problem derived from a Stim surface code experiment.
 
-Requirements:
-- cudaq_qec
-- quimb
-- autoray
-- cupy (optional, for GPU acceleration)
-
-These requirements can be installed via pip:
+This example requires the `cudaq-qec` package and the optional tensor-network dependencies.
+To install the required dependencies, run:
 
 pip install cudaq-qec[tn_decoder]
 
+Additionaly, you will need `stim` and `beliefmatching` packages:
+pip install stim beliefmatching
+
 """
-
-import numpy as np
 import cudaq_qec as qec
+import numpy as np
 
-# Example parity check matrix (H) for a [3,1] repetition code
-H = np.array([
-    [1, 1, 0],
-    [0, 1, 1]
-], dtype=np.uint8)
+import stim
 
-# Logical observable: parity of all bits
-logical_obs = np.array([[1, 1, 1]], dtype=np.uint8)
+from beliefmatching.belief_matching import detector_error_model_to_check_matrices
 
-# Simple noise model: independent bit-flip probability p for each qubit
-p = 0.1
-noise_model = [p, p, p]
+def parse_detector_error_model(detector_error_model):
+    matrices = detector_error_model_to_check_matrices(detector_error_model)
 
-# Instantiate the decoder
-decoder = qec.get_decoder(
-    "tensor_network_decoder",
-    H=H,
-    logical_obs=logical_obs,
-    noise_model=noise_model,
-    dtype="float32",
-    device="cpu"  # Use "cuda" for GPU if available
+    out_H = np.zeros(matrices.check_matrix.shape)
+    matrices.check_matrix.astype(np.float64).toarray(out=out_H)
+    out_L = np.zeros(matrices.observables_matrix.shape)
+    matrices.observables_matrix.astype(np.float64).toarray(out=out_L)
+
+    return out_H, out_L, [float(p) for p in matrices.priors]
+
+circuit = stim.Circuit.generated(
+    "surface_code:rotated_memory_z",
+    rounds=3,
+    distance=3,
+    after_clifford_depolarization=0.001,
+    after_reset_flip_probability=0.01,
+    before_measure_flip_probability=0.01,
+    before_round_data_depolarization=0.01
 )
 
-# Example syndrome: no error detected
-syndrome = [0.0, 0.0]  # probabilities for each check
+detector_error_model = circuit.detector_error_model(decompose_errors=True)
 
-result = decoder.decode(syndrome)
-print("Decoded logical observable probability (no error):", result.result)
+H, logicals, noise_model = parse_detector_error_model(detector_error_model)
 
-# Example syndrome: error detected on second check
-syndrome = [0.0, 1.0]
-result = decoder.decode(syndrome)
-print("Decoded logical observable probability (error on second check):", result.result)
+decoder = qec.get_decoder(
+    "tensor_network_decoder", 
+    H, 
+    logical_obs=logicals, 
+    noise_model=noise_model, 
+    contract_noise_model=True,
+)
 
-# Batch decoding example
-syndrome_batch = np.array([
-    [0.0, 0.0],
-    [0.0, 1.0],
-    [1.0, 0.0]
-], dtype=np.float32)
 
-batch_results = decoder.decode_batch(syndrome_batch)
-print("Batch decoded logical observable probabilities:")
-for i, res in enumerate(batch_results):
-    print(f"  Syndrome {i}: {res.result}")
+num_shots = 5
+sampler = circuit.compile_detector_sampler()
+detection_events, observable_flips = sampler.sample(num_shots, separate_observables=True)
+
+res = decoder.decode_batch(detection_events)
+print("Tensor network prediction: ", [r.result[0] > 0.5 for r in res])
+
+print("Actual observable flips: ", [bool(o[0]) for o in observable_flips])
