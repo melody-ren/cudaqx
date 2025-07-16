@@ -41,7 +41,7 @@ NVIDIA QLDPC Decoder
 
 .. _tensor_network_decoder_api_python:
 
-Tensor Network Decoders
+Tensor Network Decoder
 ----------------------
 
 .. include:: tensor_network_decoder_api.rst
