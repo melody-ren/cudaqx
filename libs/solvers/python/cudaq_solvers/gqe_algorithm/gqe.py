@@ -340,6 +340,8 @@ def gqe(cost, pool, config=None, **kwargs):
     
     GQE uses a transformer model to learn which quantum operators from a pool
     should be applied to minimize a given cost function. Python-only implementation.
+
+    The GQE implementation in CUDA-Q Solvers is based on this paper: `K. Nakaji et al. (2024) <https://arxiv.org/abs/2401.09253>`_.
     
     Args:
         cost: Cost function that evaluates operator sequences
