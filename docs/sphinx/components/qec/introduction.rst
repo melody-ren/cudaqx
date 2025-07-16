@@ -771,7 +771,7 @@ Key Steps:
 
 2. **Specify the logical observable**: This is typically a row vector indicating which qubits participate in the logical operator.
 
-3. **Set the noise model**: The example uses a factorized noise model with independent bit-flip probability for each qubit.
+3. **Set the noise model**: The example uses a factorized noise model with independent bit-flip probability for each error mechanism.
 
 4. **Instantiate the decoder**: Create a ``TensorNetworkDecoder`` object with the code parameters.
 
