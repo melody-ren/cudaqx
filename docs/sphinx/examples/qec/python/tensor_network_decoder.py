@@ -67,6 +67,6 @@ sampler = circuit.compile_detector_sampler()
 detection_events, observable_flips = sampler.sample(num_shots, separate_observables=True)
 
 res = decoder.decode_batch(detection_events)
-print("Tensor network prediction: ", [r.result[0] > 0.5 for r in res])
 
+print("Tensor network prediction: ", [r.result[0] > 0.5 for r in res])
 print("Actual observable flips: ", [bool(o[0]) for o in observable_flips])

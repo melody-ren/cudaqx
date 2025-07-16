@@ -12,19 +12,19 @@
 
       .. code-block:: python
 
-          import cudaq_qec as qec
-          import numpy as np
+        import cudaq_qec as qec
+        import numpy as np
 
-          # Example: [3,1] repetition code
-          H = np.array([[1, 1, 0],
-                        [0, 1, 1]], dtype=np.uint8)
-          logical_obs = np.array([[1, 1, 1]], dtype=np.uint8)
-          noise_model = [0.1, 0.1, 0.1]
+        # Example: [3,1] repetition code
+        H = np.array([[1, 1, 0],
+                [0, 1, 1]], dtype=np.uint8)
+        logical_obs = np.array([[1, 1, 1]], dtype=np.uint8)
+        noise_model = [0.1, 0.1, 0.1]
 
-          decoder = qec.get_decoder("tensor_network_decoder", H, logical_obs=logical_obs, noise_model=noise_model)
+        decoder = qec.get_decoder("tensor_network_decoder", H, logical_obs=logical_obs, noise_model=noise_model)
 
-          syndrome = [0.0, 1.0]
-          result = decoder.decode(syndrome)
+        syndrome = [0.0, 1.0]
+        result = decoder.decode(syndrome)
         
     .. rubric:: Tensor Network Structure
 

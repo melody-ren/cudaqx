@@ -110,3 +110,11 @@ In the following example, we show how to use the `TensorNetworkDecoder` class fr
 .. literalinclude:: ../../examples/qec/python/tensor_network_decoder.py
     :language: python
     :start-after: [Begin Documentation]
+
+Output:
+
+The decoder returns the probability that the logical observable has flipped for each syndrome. This can be used to assess the performance of the code and the decoder under different error scenarios.
+
+See Also:
+
+- ``cudaq_qec.plugins.decoders.tensor_network_decoder``
