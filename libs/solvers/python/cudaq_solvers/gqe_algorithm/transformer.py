@@ -215,7 +215,6 @@ class Transformer(LightningModule):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
-        Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
         if idx is None:
             idx = self._starting_idx.clone()
