@@ -14,13 +14,13 @@
 # multiple QPUs (thereby observing a speed-up), set the target and
 # use MPI:
 #
-# cudaq.set_target('nvidia', mqpu=True)
+# cudaq.set_target('nvidia', option='mqpu')
 # cudaq.mpi.initialize()
 #
 # run with
 #
 # mpiexec -np N and vary N to see the speedup...
-# e.g. mpiexec -np 2 python3 gqe_h2.py
+# e.g. mpiexec -np 2 python3 gqe_h2.py 
 #
 # End the script with
 # cudaq.mpi.finalize()
@@ -44,7 +44,7 @@ torch.backends.cudnn.benchmark = False
 
 # Check if NVIDIA GPUs are available and set target accordingly
 try:
-    cudaq.set_target('nvidia', options='fp64')
+    cudaq.set_target('nvidia', option='fp64')
 except RuntimeError:
     # Fall back to CPU target
     cudaq.set_target('qpp-cpu')
@@ -147,13 +147,15 @@ def cost(sampled_ops: list[cudaq.SpinOperator], **kwargs):
         full_coeffs += [c.real for c in term_coefficients(op)]
         full_words += term_words(op)
 
-    # If using CUDA-Q MQPU, use the following instead:
-    # handle = cudaq.observe_async(kernel,
-    #                              ham,
-    #                              qubit_count,
-    #                              full_coeffs,
-    #                              full_words,
-    #                              qpu_id=qpu_id)
+    # If using CUDA-Q MQPU,
+    # use observe_async with the provided qpu_id: 
+    # handle = cudaq.observe_async(kernel, 
+    #                             spin_ham,
+    #                             n_qubits, 
+    #                             n_electrons,
+    #                             full_coeffs,
+    #                             full_words,
+    #                             qpu_id=kwargs['qpu_id'])
     # return handle, lambda res: res.get().expectation()
 
     return cudaq.observe(kernel, spin_ham, n_qubits, n_electrons, full_coeffs,
