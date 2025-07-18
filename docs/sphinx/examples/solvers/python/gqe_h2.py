@@ -20,7 +20,7 @@
 # run with
 #
 # mpiexec -np N and vary N to see the speedup...
-# e.g. mpiexec -np 2 python3 gqe_h2.py 
+# e.g. mpiexec -np 2 python3 gqe_h2.py
 #
 # End the script with
 # cudaq.mpi.finalize()
@@ -148,10 +148,10 @@ def cost(sampled_ops: list[cudaq.SpinOperator], **kwargs):
         full_words += term_words(op)
 
     # If using CUDA-Q MQPU,
-    # use observe_async with the provided qpu_id: 
-    # handle = cudaq.observe_async(kernel, 
+    # use observe_async with the provided qpu_id:
+    # handle = cudaq.observe_async(kernel,
     #                             spin_ham,
-    #                             n_qubits, 
+    #                             n_qubits,
     #                             n_electrons,
     #                             full_coeffs,
     #                             full_words,
