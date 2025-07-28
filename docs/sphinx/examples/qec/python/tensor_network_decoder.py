@@ -36,7 +36,7 @@ import numpy as np
 import platform
 if platform.machine().lower() in ("arm64", "aarch64"):
     print(
-        "Warning: stim is not supported on ARM64/aarch64. Skipping this example..."
+        "Warning: stim is not supported on manylinux ARM64/aarch64. Skipping this example..."
     )
     sys.exit(0)
 
