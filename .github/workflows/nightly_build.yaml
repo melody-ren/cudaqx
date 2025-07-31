@@ -1,4 +1,4 @@
-name: Nightly Combined Image + Tests
+name: Nightly Combined Image and Tests
 
 on:
   workflow_dispatch:
@@ -101,7 +101,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install deps & run tests
-        run: echo "TODO: run tests"
+        run: |
+           echo "TODO: run tests"
 
       - name: Clean up local image
         if: always()
