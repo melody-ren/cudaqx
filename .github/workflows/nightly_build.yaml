@@ -26,7 +26,6 @@ jobs:
     permissions:
       contents: read
       actions: write
-      workflows: write
     outputs:
       run_id: ${{ steps.dispatch.outputs.run_id }}
     steps:
@@ -74,7 +73,6 @@ jobs:
     permissions:
       contents: read
       actions: write
-      workflows: write
     outputs:
       run_id: ${{ steps.dispatch.outputs.run_id }}
       image_tag: ${{ env.COMBINED_TAG }}
