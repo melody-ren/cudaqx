@@ -23,9 +23,16 @@ jobs:
   all-libs:
     name: Run All-libs build (with optional docker-files ZIP)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+      workflows: write
     outputs:
       run_id: ${{ steps.dispatch.outputs.run_id }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: (Optional) Discover docker-files-*.zip asset
         id: find_docker
         run: |
@@ -64,9 +71,17 @@ jobs:
     name: Run Combined-image workflow
     needs: all-libs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+      workflows: write
     outputs:
-      combined_run_id: ${{ steps.dispatch.outputs.run_id }}
+      run_id: ${{ steps.dispatch.outputs.run_id }}
+      image_tag: ${{ env.COMBINED_TAG }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Dispatch Combined workflow
         id: dispatch
         run: |
@@ -74,7 +89,6 @@ jobs:
             --ref \"${{ github.event.inputs.branch }}\" \
             --field base_image=\"${{ github.event.inputs.base-image }}\" \
             --field artifacts_from_run=\"${{ needs.all-libs.outputs.run_id }}\" \
-            --field pub_tag=\"${{ env.COMBINED_TAG }}\" \
             --field push=false"
 
           eval $CMD
@@ -88,22 +102,3 @@ jobs:
 
       - name: Wait for Combined to finish
         run: gh run watch ${{ steps.dispatch.outputs.run_id }}
-
-  nightly-tests:
-    name: Nightly Smoke Tests
-    needs: build-combined
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/nvidia/private/cuda-quantum:${{ env.COMBINED_TAG }}
-      options: --user root
-    steps:
-      - name: Checkout test harness
-        uses: actions/checkout@v4
-
-      - name: Install deps & run tests
-        run: |
-           echo "TODO: run tests"
-
-      - name: Clean up local image
-        if: always()
-        run: docker image rm ghcr.io/nvidia/private/cuda-quantum:${{ env.COMBINED_TAG }}
