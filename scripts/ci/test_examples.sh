@@ -87,9 +87,9 @@ if [[ "$LIB" == "solvers" || "$LIB" == "all" ]]; then
         if echo "$file" | grep -qi "mpi"; then
             echo "Running MPI example: $file"
             # Run MPI using CUDAQ MPI
-            run_python_test "$file" "--mpi"
+            python3 "$file" --mpi
             # Repeat using MPI Python API
-            PMIX_MCA_gds=hash mpiexec -np 1 python3 $file --mpi
+            PMIX_MCA_gds=hash mpiexec -np 1 --allow-run-as-root python3 $file --mpi
         fi
     done
     
