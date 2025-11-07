@@ -93,3 +93,4 @@ install(DIRECTORY ${CUDAQX_QEC_INCLUDE_DIR}/cudaq
   FILES_MATCHING PATTERN "*.h"
 )
 
+add_subdirectory(realtime)
