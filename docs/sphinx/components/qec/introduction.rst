@@ -640,13 +640,30 @@ The Quantum Low-Density Parity-Check (QLDPC) decoder leverages GPU-accelerated b
 Since belief propagation is an iterative method which may not converge, decoding can be improved with a second-stage post-processing step. The `nv-qldpc-decoder`
 API provides various post-processing options, which can be selected through its parameters.
 
+**Belief Propagation Methods:**
+
+The decoder supports multiple BP algorithms (configured via ``bp_method``):
+
+* **Sum-Product BP** (``bp_method=0``, default): Classic belief propagation algorithm that computes exact probabilities.
+* **Min-Sum BP** (``bp_method=1``): Approximation to sum-product that uses min operations instead of sum, with optional ``scale_factor``.
+* **Memory-based BP** (``bp_method=2``): Min-sum with uniform memory strength (``gamma0``) across all variable nodes, helping to escape local minima.
+* **Disordered Memory BP** (``bp_method=3``): Min-sum with per-variable memory strengths (``gamma_dist`` or ``explicit_gammas``), providing more flexibility.
+
+**Sequential Relay Decoding:**
+
+Starting with version 0.5.0, the decoder supports Sequential Relay BP (configured via ``composition=1``), which combines disordered memory BP 
+with multiple "relay legs" - sequential runs with different gamma configurations. Sequential Relay BP requires ``bp_method=3`` and the ``srelay_config`` parameter 
+to specify pre-iterations, number of relay legs, and stopping criteria.
+
 The QLDPC decoder `nv-qldpc-decoder` requires a CUDA-Q compatible GPU. See the list below for dependencies and compatibility:
 https://nvidia.github.io/cuda-quantum/latest/using/install/local_installation.html#dependencies-and-compatibility
 
 The decoder is based on the following references:
 
 * https://arxiv.org/pdf/2005.07016 
-* https://github.com/quantumgizmos/ldpc
+* https://github.com/quantumgizmos/ldpc 
+* https://arxiv.org/pdf/2506.01779 
+* https://github.com/trmue/relay 
 
 
 Usage:
