@@ -216,10 +216,16 @@ def demonstrate_bp_methods():
 
     # Method 0: Sum-Product BP (default)
     print("\n1. Sum-Product BP (bp_method=0, default):")
-    decoder_sp = qec.get_decoder("nv-qldpc-decoder",
-                                 H,
-                                 bp_method=0,
-                                 max_iterations=30)
+    try:
+        decoder_sp = qec.get_decoder("nv-qldpc-decoder",
+                                     H,
+                                     bp_method=0,
+                                     max_iterations=30)
+    except Exception as e:
+        print(
+            'The nv-qldpc-decoder is not available with your current CUDA-Q ' +
+            'QEC installation.')
+        exit(0)
     print("   Created decoder with sum-product BP")
 
     # Method 1: Min-Sum BP
