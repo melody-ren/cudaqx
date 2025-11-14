@@ -87,7 +87,7 @@ between accuracy, convergence, and speed:
 * **Min-Sum BP** (``bp_method=1``): Faster approximation to sum-product. Can be tuned with ``scale_factor``.
 * **Memory-based BP** (``bp_method=2``): Adds uniform memory (``gamma0``) to help escape local minima. Useful when standard BP fails to converge.
 * **Disordered Memory BP** (``bp_method=3``): Uses per-variable memory strengths for better adaptability to code structure.
-* **Sequential Relay BP** (``composition=1``): Advanced method (v0.5.0+) that runs multiple "relay legs" with different gamma configurations. See examples below for configuration.
+* **Sequential Relay BP** (``composition=1``): Advanced method that runs multiple "relay legs" with different gamma configurations. See examples below for configuration.
 
 Usage Example
 ~~~~~~~~~~~~~
@@ -100,7 +100,7 @@ it includes parity check matrices (PCMs) and test syndromes to exercise a decode
 The example demonstrates:
 
 1. **Basic decoder configuration** with OSD post-processing
-2. **All BP methods** including Sequential Relay BP (v0.5.0+)
+2. **All BP methods** including Sequential Relay BP
 3. **Batched decoding** for improved performance
 
 .. literalinclude:: ../../examples/qec/python/nv-qldpc-decoder.py
