@@ -81,7 +81,7 @@ Belief Propagation Methods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``nv-qldpc-decoder`` supports multiple belief propagation (BP) algorithms, each with different trade-offs 
-between accuracy, convergence and speed:
+between accuracy, convergence, and speed:
 
 * **Sum-Product BP** (``bp_method=0``): The standard BP algorithm. Good baseline performance.
 * **Min-Sum BP** (``bp_method=1``): Faster approximation to sum-product. Can be tuned with ``scale_factor``.
