@@ -926,15 +926,19 @@ std::vector<decoder_result> trt_decoder::decode_batch_impl(
       // Prepare input batch. For float input we preserve soft (raw) values;
       // for uint8 we binarize to 0/1.
       std::vector<IoType> input_host(impl_->input_size);
+      std::vector<uint8_t> hard_syndrome;
       for (size_t batch_idx = 0; batch_idx < actual_batch; ++batch_idx) {
         const auto &syndrome = syndromes[batch_start + batch_idx];
-        for (size_t i = 0; i < syndrome_size_per_sample_; ++i) {
-          if constexpr (std::is_same_v<IoType, float>) {
+        if constexpr (std::is_same_v<IoType, float>) {
+          for (size_t i = 0; i < syndrome_size_per_sample_; ++i) {
             input_host[batch_idx * syndrome_size_per_sample_ + i] =
                 static_cast<IoType>(syndrome[i]);
-          } else {
+          }
+        } else {
+          cudaq::qec::convert_vec_soft_to_hard(syndrome, hard_syndrome);
+          for (size_t i = 0; i < syndrome_size_per_sample_; ++i) {
             input_host[batch_idx * syndrome_size_per_sample_ + i] =
-                static_cast<IoType>(syndrome[i] >= 0.5f ? 1 : 0);
+                static_cast<IoType>(hard_syndrome[i]);
           }
         }
       }

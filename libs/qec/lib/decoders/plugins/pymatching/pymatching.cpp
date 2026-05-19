@@ -167,10 +167,12 @@ public:
     auto t1 = std::chrono::high_resolution_clock::now();
 #endif
 
+    std::vector<uint8_t> hard_syndrome;
+    cudaq::qec::convert_vec_soft_to_hard(syndrome, hard_syndrome);
     std::vector<uint64_t> detection_events;
-    detection_events.reserve(syndrome.size());
-    for (size_t i = 0; i < syndrome.size(); i++)
-      if (syndrome[i] > 0.5)
+    detection_events.reserve(hard_syndrome.size());
+    for (size_t i = 0; i < hard_syndrome.size(); i++)
+      if (hard_syndrome[i])
         detection_events.push_back(i);
 #if PERFORM_TIMING
     auto t2 = std::chrono::high_resolution_clock::now();

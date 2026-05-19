@@ -56,6 +56,14 @@ TEST(DecoderUtils, CovertSoftToHard) {
   for (int i = 0; i < out.size(); i++)
     ASSERT_EQ(out[i], expected_out[i]);
 
+  std::vector<float> boundary_in = {0.499f, 0.5f, 0.501f};
+  std::vector<uint8_t> boundary_out;
+  std::vector<uint8_t> expected_boundary_out = {0, 1, 1};
+  cudaq::qec::convert_vec_soft_to_hard(boundary_in, boundary_out);
+  ASSERT_EQ(boundary_out.size(), expected_boundary_out.size());
+  for (int i = 0; i < boundary_out.size(); i++)
+    ASSERT_EQ(boundary_out[i], expected_boundary_out[i]);
+
   std::vector<std::vector<double>> in2 = {{0.6, 0.4}, {0.7, 0.8}};
   std::vector<std::vector<int>> out2;
   std::vector<std::vector<int>> expected_out2 = {{1, 0}, {1, 1}};
@@ -182,6 +190,12 @@ TEST(SteaneLutDecoder, checkAPI) {
   }
   ASSERT_TRUE(convergeTrueFound);
   ASSERT_FALSE(convergeFalseFound);
+
+  std::vector<float_t> boundary_syndrome = {0.5, 0.0, 0.5};
+  auto boundary_result = d->decode(boundary_syndrome);
+  ASSERT_TRUE(boundary_result.converged);
+  ASSERT_EQ(boundary_result.result.size(), block_size);
+  EXPECT_EQ(boundary_result.result[4], 1.0);
 
   // Test opt_results functionality
   // Test case 1: Invalid result type

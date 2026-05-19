@@ -49,11 +49,13 @@ public:
     decoder_result result{false, std::vector<float_t>(block_size, 0.0)};
 
     // Convert syndrome to a string
-    std::string syndrome_str(syndrome.size(), '0');
+    std::vector<uint8_t> hard_syndrome;
+    cudaq::qec::convert_vec_soft_to_hard(syndrome, hard_syndrome);
+    std::string syndrome_str(hard_syndrome.size(), '0');
     assert(syndrome_str.length() == syndrome_size);
     bool anyErrors = false;
     for (std::size_t i = 0; i < syndrome_size; i++) {
-      if (syndrome[i] >= 0.5) {
+      if (hard_syndrome[i]) {
         syndrome_str[i] = '1';
         anyErrors = true;
       }
