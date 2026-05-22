@@ -75,6 +75,27 @@ TEST(DecoderUtils, CovertSoftToHard) {
   }
 }
 
+TEST(DecoderUtils, ConvertSoftToHardScalar) {
+  // Default threshold (0.5): the canonical >= contract.
+  EXPECT_TRUE(cudaq::qec::convert_soft_to_hard(0.6f));
+  EXPECT_FALSE(cudaq::qec::convert_soft_to_hard(0.4f));
+  EXPECT_TRUE(cudaq::qec::convert_soft_to_hard(0.5f));
+  EXPECT_FALSE(cudaq::qec::convert_soft_to_hard(0.499f));
+  EXPECT_TRUE(cudaq::qec::convert_soft_to_hard(0.501f));
+
+  // Double-precision input.
+  EXPECT_TRUE(cudaq::qec::convert_soft_to_hard(0.5));
+  EXPECT_FALSE(cudaq::qec::convert_soft_to_hard(0.499));
+
+  // Custom threshold.
+  EXPECT_TRUE(cudaq::qec::convert_soft_to_hard(0.4f, 0.4f));
+  EXPECT_FALSE(cudaq::qec::convert_soft_to_hard(0.3f, 0.4f));
+
+  // Usable in a constant-expression context.
+  static_assert(cudaq::qec::convert_soft_to_hard(0.5f));
+  static_assert(!cudaq::qec::convert_soft_to_hard(0.49f));
+}
+
 TEST(DecoderUtils, ConvertVecSoftToTensorHard) {
   // Generate a million random floats between 0 and 1 using mt19937
   std::mt19937_64 gen(13);
