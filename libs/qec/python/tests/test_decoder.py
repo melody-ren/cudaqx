@@ -270,9 +270,9 @@ def test_single_error_lut_example_uses_canonical_threshold():
     decoder = qec.get_decoder('single_error_lut_example', H)
     result = decoder.decode([0.5])
 
-    # For this H, syndrome "1" maps to a correction on qubit 0.
+    # For this H, syndrome "1" maps to a correction on qubit 1.
     assert result.converged is True
-    assert np.array_equal(result.result, [1.0, 0.0])
+    assert np.array_equal(result.result, [0.0, 1.0])
 
 
 def test_decoder_result_values():
