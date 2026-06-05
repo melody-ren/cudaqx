@@ -272,7 +272,7 @@ def test_single_error_lut_example_uses_canonical_threshold():
 
     # For this H, syndrome "1" maps to a correction on qubit 0.
     assert result.converged is True
-    assert result.result == [1.0, 0.0]
+    assert np.array_equal(result.result, [1.0, 0.0])
 
 
 def test_decoder_result_values():
