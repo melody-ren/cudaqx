@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2022 - 2025 NVIDIA Corporation & Affiliates.                  *
+ * Copyright (c) 2022 - 2026 NVIDIA Corporation & Affiliates.                  *
  * All rights reserved.                                                        *
  *                                                                             *
  * This source code and the accompanying materials are made available under    *
@@ -7,15 +7,22 @@
  ******************************************************************************/
 #include "common/ExecutionContext.h"
 #include "common/FmtCore.h"
+#include "cuda-qx/core/kwargs_utils.h"
+#include "cuda-qx/core/library_utils.h"
+#include "type_casters.h"
 #include "cudaq/platform.h"
 #include "cudaq/qec/decoder.h"
 #include "cudaq/qec/detector_error_model.h"
 #include "cudaq/qec/pcm_utils.h"
 #include "cudaq/qec/plugin_loader.h"
+#include "cudaq/qec/sparse_binary_matrix.h"
 #include "cudaq/runtime/logger/logger.h"
+#include <algorithm>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <link.h>
+#include <memory>
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/complex.h>
@@ -28,15 +35,60 @@
 #include <nanobind/stl/variant.h>
 #include <nanobind/stl/vector.h>
 #include <nanobind/trampoline.h>
-
-#include "cuda-qx/core/kwargs_utils.h"
-#include "cuda-qx/core/library_utils.h"
-#include "type_casters.h"
+#include <unordered_map>
 
 namespace nb = nanobind;
 using namespace cudaqx;
 
 namespace cudaq::qec {
+
+/// Range-checked narrow from std::size_t to sparse_binary_matrix::index_type;
+/// unchecked static_cast would silently truncate 64-bit Python ints.
+static sparse_binary_matrix::index_type
+checked_narrow_to_index_type(std::size_t value, const char *field_name) {
+  if (value > std::numeric_limits<sparse_binary_matrix::index_type>::max())
+    throw std::runtime_error(
+        std::string(field_name) +
+        " exceeds sparse_binary_matrix index_type (uint32_t) range; got " +
+        std::to_string(value));
+  return static_cast<sparse_binary_matrix::index_type>(value);
+}
+
+/// Build sparse_binary_matrix from Python dict with keys layout, num_rows,
+/// num_cols, nested (nested_csc or nested_csr format).
+static sparse_binary_matrix
+sparse_binary_matrix_from_py_dict(const nb::dict &d) {
+  if (!d.contains("layout") || !d.contains("num_rows") ||
+      !d.contains("num_cols") || !d.contains("nested"))
+    throw std::runtime_error(
+        "Sparse H dict must have keys: layout, num_rows, num_cols, "
+        "nested. Use layout \"nested_csc\": nested has one list per COLUMN "
+        "with ROW indices where that column has a one; \"nested_csr\": one "
+        "list per ROW with COLUMN indices for that row.");
+  std::string layout = nb::cast<std::string>(d["layout"]);
+  auto num_rows = checked_narrow_to_index_type(
+      nb::cast<std::size_t>(d["num_rows"]), "num_rows");
+  auto num_cols = checked_narrow_to_index_type(
+      nb::cast<std::size_t>(d["num_cols"]), "num_cols");
+  nb::list nested_py = nb::cast<nb::list>(d["nested"]);
+  std::vector<std::vector<sparse_binary_matrix::index_type>> nested;
+  nested.reserve(nested_py.size());
+  for (size_t i = 0; i < nested_py.size(); ++i) {
+    nb::list inner = nb::cast<nb::list>(nested_py[i]);
+    std::vector<sparse_binary_matrix::index_type> row;
+    row.reserve(inner.size());
+    for (size_t j = 0; j < inner.size(); ++j)
+      row.push_back(checked_narrow_to_index_type(
+          nb::cast<std::size_t>(inner[j]), "nested entry"));
+    nested.push_back(std::move(row));
+  }
+  if (layout == "nested_csc")
+    return sparse_binary_matrix::from_nested_csc(num_rows, num_cols, nested);
+  if (layout == "nested_csr")
+    return sparse_binary_matrix::from_nested_csr(num_rows, num_cols, nested);
+  throw std::runtime_error(
+      "Sparse H dict layout must be \"nested_csc\" or \"nested_csr\".");
+}
 
 class PyDecoder : public decoder {
 public:
@@ -47,8 +99,14 @@ public:
           auto borrow = toTensor(H);
           cudaqx::tensor<uint8_t> owned(borrow.shape());
           owned.copy(borrow.data(), borrow.shape());
-          return owned;
+          // Force CSC to match get_decoder(ndarray); avoids CSR→CSC transposes
+          // in downstream to_nested_csc() calls.
+          return cudaq::qec::sparse_binary_matrix(
+              owned, cudaq::qec::sparse_binary_matrix_layout::csc);
         }()) {}
+
+  PyDecoder(const nb::dict &d)
+      : decoder(sparse_binary_matrix_from_py_dict(d)) {}
 
   decoder_result decode(const std::vector<float_t> &syndrome) override {
     NB_OVERRIDE_PURE(decode, syndrome);
@@ -58,23 +116,19 @@ public:
 // Registry to store decoder factory functions
 class PyDecoderRegistry {
 private:
-  static std::unordered_map<
-      std::string, std::function<nb::object(
-                       const nb::ndarray<nb::numpy, uint8_t> &, nb::kwargs)>>
+  static std::unordered_map<std::string,
+                            std::function<nb::object(nb::object, nb::kwargs)>>
       registry;
 
 public:
-  static void register_decoder(
-      const std::string &name,
-      std::function<nb::object(const nb::ndarray<nb::numpy, uint8_t> &,
-                               nb::kwargs)>
-          factory) {
+  static void
+  register_decoder(const std::string &name,
+                   std::function<nb::object(nb::object, nb::kwargs)> factory) {
     cudaq::info("Registering Pythonic Decoder with name {}", name);
     registry[name] = factory;
   }
 
-  static nb::object get_decoder(const std::string &name,
-                                const nb::ndarray<nb::numpy, uint8_t> &H,
+  static nb::object get_decoder(const std::string &name, nb::object H,
                                 nb::kwargs options) {
     auto it = registry.find(name);
     if (it == registry.end()) {
@@ -90,9 +144,202 @@ public:
 };
 
 std::unordered_map<std::string,
-                   std::function<nb::object(
-                       const nb::ndarray<nb::numpy, uint8_t> &, nb::kwargs)>>
+                   std::function<nb::object(nb::object, nb::kwargs)>>
     PyDecoderRegistry::registry;
+
+namespace {
+
+struct batch_decoder_result {
+  // Python-facing constructor for decoder plugin authors. nanobind enforces
+  // ndim on the typed array arguments and rejects wrong-rank input with
+  // TypeError, but it does not enforce dtype strictly (int32 input is
+  // silently coerced to float) and does not enforce C-contiguity. We
+  // therefore re-coerce through np.ascontiguousarray below to guarantee
+  // both invariants — batch[i] reads rows by raw pointer and relies on
+  // them. Cross-array invariants (row count, opt_results length) are also
+  // checked here since nanobind cannot see them.
+  batch_decoder_result(nb::ndarray<nb::numpy, float_t, nb::ndim<2>> result_arr,
+                       nb::ndarray<nb::numpy, bool, nb::ndim<1>> converged_arr,
+                       nb::object opt_results) {
+    size = converged_arr.shape(0);
+    if (result_arr.shape(0) != size)
+      throw std::runtime_error(
+          "BatchDecoderResult result row count must match the number of "
+          "convergence flags.");
+
+    if (opt_results.is_none()) {
+      nb::list lst;
+      for (std::size_t i = 0; i < size; ++i)
+        lst.append(nb::none());
+      this->opt_results = lst;
+    } else {
+      this->opt_results = nb::cast<nb::list>(opt_results);
+      if (nb::len(this->opt_results) != size)
+        throw std::runtime_error(
+            "BatchDecoderResult opt_results length must match the number of "
+            "convergence flags.");
+    }
+
+    nb::module_ np = nb::module_::import_("numpy");
+    nb::object float_dtype = sizeof(float_t) == sizeof(float)
+                                 ? np.attr("float32")
+                                 : np.attr("float64");
+    this->result = np.attr("ascontiguousarray")(nb::cast(result_arr),
+                                                nb::arg("dtype") = float_dtype);
+    this->converged = np.attr("ascontiguousarray")(
+        nb::cast(converged_arr), nb::arg("dtype") = np.attr("bool_"));
+  }
+
+  // Trusted internal constructor: callers guarantee shape/dtype invariants.
+  // Used by makeBatchDecoderResult and batchSliceToBatchDecoderResult.
+  batch_decoder_result(nb::object result, nb::object converged,
+                       nb::list opt_results, std::size_t size)
+      : result(result), converged(converged), opt_results(opt_results),
+        size(size) {}
+
+  nb::object result;
+  nb::object converged;
+  nb::list opt_results;
+  std::size_t size = 0;
+};
+
+Py_ssize_t normalizeBatchIndex(Py_ssize_t index, std::size_t size) {
+  const auto signed_size = static_cast<Py_ssize_t>(size);
+  if (index < 0)
+    index += signed_size;
+  if (index < 0 || index >= signed_size)
+    throw nb::index_error();
+  return index;
+}
+
+decoder_result batchItemToDecoderResult(const batch_decoder_result &batch,
+                                        Py_ssize_t index) {
+  const auto normalized_index = normalizeBatchIndex(index, batch.size);
+  nb::object py_index = nb::int_(normalized_index);
+  auto row = nb::cast<nb::ndarray<nb::numpy, float_t>>(
+      batch.result.attr("__getitem__")(py_index));
+
+  decoder_result result;
+  nb::object converged = batch.converged.attr("__getitem__")(py_index);
+  const int is_converged = PyObject_IsTrue(converged.ptr());
+  if (is_converged < 0) {
+    PyErr_Clear();
+    throw nb::type_error(
+        "BatchDecoderResult converged entries must be bool-like.");
+  }
+  result.converged = is_converged != 0;
+  const auto result_size = row.shape(0);
+  const auto *data = static_cast<const float_t *>(row.data());
+  result.result.assign(data, data + result_size);
+
+  nb::object opt_results = batch.opt_results.attr("__getitem__")(py_index);
+  if (!opt_results.is_none())
+    result.opt_results = nb::cast<cudaqx::heterogeneous_map>(opt_results);
+  return result;
+}
+
+batch_decoder_result
+batchSliceToBatchDecoderResult(const batch_decoder_result &batch,
+                               const nb::slice &slice) {
+  nb::object result = batch.result.attr("__getitem__")(slice);
+  nb::object converged = batch.converged.attr("__getitem__")(slice);
+  nb::list opt_results =
+      nb::cast<nb::list>(batch.opt_results.attr("__getitem__")(slice));
+  return batch_decoder_result(result, converged, opt_results,
+                              nb::len(converged));
+}
+
+// Wrap a heap-allocated buffer (owned via unique_ptr) in a NumPy ndarray that
+// will free the buffer when garbage-collected. The unique_ptr argument keeps
+// the buffer alive until ownership is transferred to the capsule; if any step
+// inside this function throws, the buffer is freed by the unique_ptr
+// destructor on unwind.
+template <typename T, std::size_t Rank>
+nb::object makeOwnedNdarray(std::unique_ptr<T[]> data,
+                            const std::size_t (&shape)[Rank]) {
+  auto *raw_data = data.get();
+  nb::capsule owner(raw_data,
+                    [](void *p) noexcept { delete[] static_cast<T *>(p); });
+  data.release();
+  return nb::cast(
+      nb::ndarray<nb::numpy, T>(raw_data, Rank, shape, std::move(owner)));
+}
+
+nb::object decoderResultToNumpy(const std::vector<float_t> &result) {
+  const auto num_elements = result.size();
+  auto data = std::make_unique<float_t[]>(num_elements);
+  std::copy(result.begin(), result.end(), data.get());
+
+  size_t shape[1] = {num_elements};
+  return makeOwnedNdarray<float_t>(std::move(data), shape);
+}
+
+nb::object decoderResultsToNumpy(const std::vector<decoder_result> &results) {
+  const auto num_results = results.size();
+  // Empty batch yields shape (0, 0). The per-shot width is unknown without
+  // running a decode (and depends on decoder mode — e.g. decode_to_observables
+  // produces num_observables-wide rows, not block_size-wide). Callers should
+  // not rely on result.shape[1] when the batch is empty.
+  const auto result_size = num_results == 0 ? 0 : results.front().result.size();
+
+  for (std::size_t i = 0; i < results.size(); ++i) {
+    const auto actual_size = results[i].result.size();
+    if (actual_size != result_size) {
+      throw std::runtime_error(fmt::format(
+          "Cannot return decode_batch results as a NumPy array because result "
+          "vectors have inconsistent sizes: expected row width {}, but row {} "
+          "has width {}.",
+          result_size, i, actual_size));
+    }
+  }
+
+  const auto num_elements = num_results * result_size;
+  auto data = std::make_unique<float_t[]>(num_elements);
+
+  auto *out = data.get();
+  for (const auto &result : results) {
+    out = std::copy(result.result.begin(), result.result.end(), out);
+  }
+
+  size_t shape[2] = {num_results, result_size};
+  return makeOwnedNdarray<float_t>(std::move(data), shape);
+}
+
+nb::object
+decoderResultsConvergedToNumpy(const std::vector<decoder_result> &results) {
+  const auto num_results = results.size();
+  auto data = std::make_unique<bool[]>(num_results);
+  for (std::size_t i = 0; i < num_results; ++i)
+    data[i] = results[i].converged;
+
+  size_t shape[1] = {num_results};
+  return makeOwnedNdarray<bool>(std::move(data), shape);
+}
+
+nb::list
+decoderResultsOptResultsToList(const std::vector<decoder_result> &results) {
+  nb::list opt_results;
+  for (const auto &result : results) {
+    if (result.opt_results.has_value()) {
+      opt_results.append(nb::cast(result.opt_results));
+    } else {
+      opt_results.append(nb::none());
+    }
+  }
+  return opt_results;
+}
+
+batch_decoder_result
+makeBatchDecoderResult(const std::vector<decoder_result> &results) {
+  return batch_decoder_result{
+      decoderResultsToNumpy(results),
+      decoderResultsConvergedToNumpy(results),
+      decoderResultsOptResultsToList(results),
+      results.size(),
+  };
+}
+
+} // namespace
 
 void bindDecoder(nb::module_ &mod) {
   // Store a sentinel (non-null pointer required by PyCapsule_New) and invoke
@@ -106,9 +353,24 @@ void bindDecoder(nb::module_ &mod) {
                     : mod.def_submodule("qecrt");
 
   nb::class_<decoder_result>(qecmod, "DecoderResult", R"pbdoc(
-    A class representing the results of a quantum error correction decoding operation.
+    Single-shot decoder result.
 
-    This class encapsulates both the convergence status and the actual decoding result.
+    Returned by `decoder.decode(...)`. Carries the convergence flag, the
+    decoded correction chain, and optional decoder-specific metadata.
+
+    Like `BatchDecoderResult`, this is conceptually output-only — user code
+    should not need to construct or mutate one. Unlike `BatchDecoderResult`,
+    the no-arg constructor and writable fields are preserved here because
+    Python decoder plugins implementing a `decode` override use the
+    construct-then-mutate pattern:
+
+        res = DecoderResult()
+        res.converged = True
+        res.result = np.arange(...)
+        return res
+
+    Tightening this construction surface would break every existing Python
+    decoder plugin and is deferred to a future change.
 )pbdoc")
       .def(nb::init<>(), R"pbdoc(
         Default constructor for DecoderResult.
@@ -121,12 +383,28 @@ void bindDecoder(nb::module_ &mod) {
         True if the decoder successfully found a valid correction chain,
         False if the decoder failed to converge or exceeded iteration limits.
     )pbdoc")
-      .def_rw("result", &decoder_result::result, R"pbdoc(
+      .def_prop_rw(
+          "result",
+          [](const decoder_result &self) {
+            return decoderResultToNumpy(self.result);
+          },
+          [](decoder_result &self, const std::vector<float_t> &value) {
+            self.result = value;
+          },
+          R"pbdoc(
         The decoded correction chain or recovery operation.
 
         Contains the sequence of corrections that should be applied to recover
         the original quantum state. The format depends on the specific decoder
         implementation.
+
+        Returns a 1-D NumPy array of the configured QEC floating point dtype
+        (float64 in standard wheels). A fresh array is allocated per access —
+        the underlying storage is a `std::vector<float_t>` and the data is
+        copied out on read.
+
+        Accepts any sequence of floats on assignment; this is the path Python
+        decoder plugins use in their `decode` overrides (see class docstring).
     )pbdoc")
       .def_rw("opt_results", &decoder_result::opt_results, R"pbdoc(
         Optional additional results from the decoder stored in a heterogeneous map.
@@ -140,7 +418,7 @@ void bindDecoder(nb::module_ &mod) {
              case 0:
                return nb::cast(r.converged);
              case 1:
-               return nb::cast(r.result);
+               return decoderResultToNumpy(r.result);
              case 2:
                return nb::cast(r.opt_results);
              default:
@@ -149,9 +427,119 @@ void bindDecoder(nb::module_ &mod) {
            })
       // Enable iteration protocol
       .def("__iter__", [](const decoder_result &r) -> nb::object {
-        return nb::make_tuple(r.converged, r.result, r.opt_results)
+        return nb::make_tuple(r.converged, decoderResultToNumpy(r.result),
+                              r.opt_results)
             .attr("__iter__")();
       });
+
+  nb::class_<batch_decoder_result>(qecmod, "BatchDecoderResult", R"pbdoc(
+    Batched decoder result.
+
+    Produced by `decoder.decode_batch(...)`. This type is output-only: it
+    carries decoder output back to the caller and is not parsed by decoders.
+    User code should not need to construct one — call
+    `decoder.decode_batch(...)` and read the result.
+
+    Python decoder plugins implementing a `decode_batch` override may use the
+    constructor to produce one. `result` should be a 2-D NumPy array of the
+    configured QEC floating point dtype (float64 in standard wheels);
+    `converged` should be a 1-D NumPy bool array; `opt_results` is a list of
+    per-shot dicts or None entries. The constructor coerces `result` and
+    `converged` to C-contiguous storage of the expected dtype (via
+    `np.ascontiguousarray`), copying when the input doesn't already satisfy
+    those invariants. Wrong rank (e.g. 1-D `result`) is rejected with
+    TypeError.
+
+    An empty batch (zero syndromes) yields `result.shape == (0, 0)` and
+    `converged.shape == (0,)`. The per-shot width is unknown without running
+    a decode and depends on decoder mode, so `result.shape[1]` is only
+    meaningful when the batch is non-empty.
+
+    Access patterns, fastest to slowest:
+
+      1. Vectorized: read `result`, `converged`, or `opt_results` directly.
+         The properties return the underlying NumPy arrays and Python list
+         with no copy. This is the recommended path for batch processing.
+
+      2. Slicing: `batch[a:b]` returns another BatchDecoderResult that shares
+         data with the parent. NumPy basic slicing — including stepped slices
+         like `batch[::2]` — returns views, so no data is copied. The opt
+         results list slice creates a new Python list, but its entries are
+         shared references.
+
+      3. Integer indexing / iteration: `batch[i]` or `for r in batch:` yields
+         a DecoderResult copy of one shot. This compatibility surface exists
+         for code written against the previous `list[DecoderResult]` return
+         type. Each access copies the row out into a fresh per-shot buffer
+         because DecoderResult's underlying storage (`std::vector<float_t>`)
+         cannot alias into the batch's packed NumPy array — the layouts are
+         incompatible. Avoid in hot loops; prefer pattern 1.
+)pbdoc")
+      .def(nb::init<nb::ndarray<nb::numpy, float_t, nb::ndim<2>>,
+                    nb::ndarray<nb::numpy, bool, nb::ndim<1>>, nb::object>(),
+           nb::arg("result"), nb::arg("converged"),
+           nb::arg("opt_results") = nb::none())
+      .def_prop_ro(
+          "result",
+          [](const batch_decoder_result &self) { return self.result; },
+          R"pbdoc(
+        A two-dimensional NumPy array of decoder outputs, with one row per shot.
+
+        This is the fast path for batch consumers. Its dtype is the configured
+        QEC floating point type.
+    )pbdoc")
+      .def_prop_ro(
+          "converged",
+          [](const batch_decoder_result &self) { return self.converged; },
+          R"pbdoc(
+        A one-dimensional NumPy bool array indicating convergence per shot.
+    )pbdoc")
+      .def_prop_ro(
+          "opt_results",
+          [](const batch_decoder_result &self) { return self.opt_results; },
+          R"pbdoc(
+        A list of per-shot optional result dictionaries, or None entries.
+    )pbdoc")
+      .def(
+          "__getitem__",
+          [](const batch_decoder_result &self, nb::handle key) -> nb::object {
+            if (PyIndex_Check(key.ptr())) {
+              Py_ssize_t index =
+                  PyNumber_AsSsize_t(key.ptr(), PyExc_IndexError);
+              if (index == -1 && PyErr_Occurred()) {
+                PyErr_Clear();
+                throw nb::index_error();
+              }
+              return nb::cast(batchItemToDecoderResult(self, index));
+            }
+            if (nb::isinstance<nb::slice>(key)) {
+              return nb::cast(batchSliceToBatchDecoderResult(
+                  self, nb::borrow<nb::slice>(key)));
+            }
+            throw nb::type_error(
+                "BatchDecoderResult indices must be integers or slices.");
+          },
+          R"pbdoc(
+        Return one or more batch entries.
+
+        Integer indexing materializes a DecoderResult copy of one shot. This
+        path exists for compatibility with code written against the previous
+        `list[DecoderResult]` return type. Each access copies the row out
+        per shot because DecoderResult's storage (`std::vector<float_t>`)
+        cannot alias into the batch's packed NumPy array. Prefer reading
+        `result`, `converged`, and `opt_results` directly for batch
+        workflows.
+
+        Slicing returns another BatchDecoderResult whose `result` and
+        `converged` arrays are NumPy views into the parent (basic slicing,
+        including stepped slices, does not copy). `opt_results` is a new list
+        with shared element references. No per-shot work.
+    )pbdoc")
+      .def(
+          "__len__", [](const batch_decoder_result &self) { return self.size; },
+          R"pbdoc(
+        Return the number of shots in the batch.
+    )pbdoc");
 
   nb::class_<async_decoder_result>(qecmod, "AsyncDecoderResult",
                                    R"pbdoc(
@@ -169,6 +557,13 @@ void bindDecoder(nb::module_ &mod) {
   nb::class_<decoder, PyDecoder>(
       qecmod, "Decoder", "Represents a decoder for quantum error correction")
       .def(nb::init<const nb::ndarray<nb::numpy, uint8_t> &>())
+      .def(nb::init<const nb::dict &>(),
+           R"pbdoc(
+        Construct from sparse dict ``H`` with keys ``layout``, ``num_rows``,
+        ``num_cols``, and ``nested``. For bring-your-own-decoder classes that
+        receive the same sparse dict in ``cudaq.Decoder.__init__(self, H)`` as
+        was passed to ``get_decoder``.
+      )pbdoc")
       .def(
           "decode",
           [](decoder &decoder, const std::vector<float_t> &syndrome) {
@@ -189,7 +584,8 @@ void bindDecoder(nb::module_ &mod) {
           "decode_batch",
           [](decoder &decoder,
              const std::vector<std::vector<float_t>> &syndrome) {
-            return decoder.decode_batch(syndrome);
+            auto results = decoder.decode_batch(syndrome);
+            return makeBatchDecoderResult(results);
           },
           "Decode multiple syndromes and return the results",
           nb::arg("syndrome"))
@@ -310,8 +706,7 @@ void bindDecoder(nb::module_ &mod) {
 
       // Register the new class in the decoder registry
       PyDecoderRegistry::register_decoder(
-          name, [new_class](const nb::ndarray<nb::numpy, uint8_t> &H,
-                            nb::kwargs options) {
+          name, [new_class](nb::object H, nb::kwargs options) {
             nb::object instance = new_class(H, **options);
             return instance;
           });
@@ -321,11 +716,26 @@ void bindDecoder(nb::module_ &mod) {
 
   qecmod.def(
       "get_decoder",
-      [](const std::string &name, const nb::ndarray<nb::numpy, uint8_t> H,
-         const nb::kwargs options)
+      [](const std::string &name, nb::object H, nb::kwargs options)
           -> std::variant<nb::object, std::unique_ptr<decoder>> {
-        if (PyDecoderRegistry::contains(name))
+        if (PyDecoderRegistry::contains(name)) {
           return PyDecoderRegistry::get_decoder(name, H, options);
+        }
+
+        cudaq::qec::sparse_binary_matrix H_sparse;
+
+        auto make_sparse_from_dense =
+            [](const nb::ndarray<nb::numpy, uint8_t> &arr) {
+              auto tensor_H = cudaqx::pcmToTensor(arr);
+              return cudaq::qec::sparse_binary_matrix(
+                  tensor_H, cudaq::qec::sparse_binary_matrix_layout::csc);
+            };
+
+        if (nb::isinstance<nb::dict>(H))
+          H_sparse = sparse_binary_matrix_from_py_dict(nb::cast<nb::dict>(H));
+        else
+          H_sparse = make_sparse_from_dense(
+              nb::cast<nb::ndarray<nb::numpy, uint8_t>>(H));
 
         if (name == "tensor_network_decoder") {
           throw std::runtime_error(
@@ -334,38 +744,27 @@ void bindDecoder(nb::module_ &mod) {
               "    pip install cudaq-qec[tensor-network-decoder]\n");
         }
 
-        if (H.ndim() != 2) {
-          throw std::runtime_error(
-              "Parity check matrix must be 2-dimensional.");
-        }
-
-        if (H.itemsize() != sizeof(uint8_t)) {
-          throw std::runtime_error(
-              "Parity check matrix must be an array of uint8_t.");
-        }
-
-        if (H.stride(0) == (int64_t)sizeof(uint8_t)) {
-          throw std::runtime_error(
-              "Parity check matrix must be in row-major order, but "
-              "column-major order was detected.");
-        }
-
-        // Create a vector of the array dimensions
-        std::vector<std::size_t> shape;
-        for (size_t d = 0; d < H.ndim(); d++) {
-          shape.push_back(static_cast<std::size_t>(H.shape(d)));
-        }
-
-        // Make sure that we own the data within the decoder
-        // as the input array may go out of scope.
-        cudaqx::tensor<uint8_t> tensor_H(shape);
-        tensor_H.copy(static_cast<uint8_t *>(H.data()), shape);
-
-        return get_decoder(name, tensor_H, hetMapFromKwargs(options));
+        return get_decoder(name, H_sparse, hetMapFromKwargs(options));
       },
-      "Get a decoder by name with a given parity check matrix"
-      "and optional decoder-specific parameters. Note: the parity check matrix "
-      "must be in row-major order.");
+      R"pbdoc(
+        Get a decoder by name.
+
+        ``H`` may be:
+
+        - A dense 2D NumPy ``uint8`` array in row-major order: a full dense
+          ``cudaqx::tensor`` is built first, then converted to CSC sparse storage.
+          For large PCMs this can allocate as much memory as ``rows * cols``.
+        - A sparse dict with keys ``layout``, ``num_rows``, ``num_cols``, ``nested``:
+          builds ``sparse_binary_matrix`` directly (no dense tensor for ``H``),
+          allowing native C++ decoders like ``pymatching`` to be constructed
+          from very large parity-check matrices.
+
+        For Python-registered decoders (``cudaq.qec.decoder`` decorator), ``H``
+        is passed through to ``__init__`` unchanged (NumPy array or sparse dict).
+        Call ``Decoder.__init__(self, H)`` so nanobind can store the PCM in CSC
+        form when ``H`` is a dict without building a dense ``rows × cols``
+        allocation.
+      )pbdoc");
 
   qecmod.def(
       "get_sorted_pcm_column_indices",
@@ -508,9 +907,10 @@ void bindDecoder(nb::module_ &mod) {
 
   qecmod.def(
       "generate_random_pcm",
+      // Signed `weight` so the C++ guard reports negatives instead of nanobind
+      // rejecting at the marshalling boundary.
       [](std::uint32_t n_rounds, std::uint32_t n_errs_per_round,
-         std::uint32_t n_syndromes_per_round, std::uint32_t weight,
-         std::uint32_t seed) {
+         std::uint32_t n_syndromes_per_round, int weight, std::uint32_t seed) {
         std::mt19937_64 rng(seed);
         if (seed == 0)
           rng = std::mt19937_64(std::random_device()());
@@ -532,6 +932,10 @@ void bindDecoder(nb::module_ &mod) {
         This function creates a random parity check matrix for quantum error correction
         with specified parameters controlling the structure and randomness.
 
+        If ``n_rounds * n_syndromes_per_round * n_rounds * n_errs_per_round`` is
+        larger than the internal dense limit (see C++ API), this raises
+        ``ValueError`` / ``RuntimeError``; use :func:`generate_random_pcm_sparse`.
+
         Args:
             n_rounds: Number of measurement rounds in the error correction protocol
             n_errs_per_round: Number of error mechanisms per round
@@ -548,6 +952,42 @@ void bindDecoder(nb::module_ &mod) {
       )pbdoc",
       nb::arg("n_rounds"), nb::arg("n_errs_per_round"),
       nb::arg("n_syndromes_per_round"), nb::arg("weight"), nb::arg("seed") = 0);
+
+  qecmod.def(
+      "generate_random_pcm_sparse",
+      // Signed `weight` for the same reason as generate_random_pcm above.
+      [](std::uint32_t n_rounds, std::uint32_t n_errs_per_round,
+         std::uint32_t n_syndromes_per_round, int weight,
+         std::uint32_t seed) -> nb::dict {
+        std::mt19937_64 rng(seed);
+        if (seed == 0)
+          rng = std::mt19937_64(std::random_device()());
+
+        cudaq::qec::sparse_binary_matrix sparse =
+            cudaq::qec::generate_random_pcm_sparse(n_rounds, n_errs_per_round,
+                                                   n_syndromes_per_round,
+                                                   weight, std::move(rng));
+        nb::dict out;
+        out["layout"] = "nested_csc";
+        out["num_rows"] = sparse.num_rows();
+        out["num_cols"] = sparse.num_cols();
+        auto nested_py = nb::list();
+        for (auto &col : sparse.to_nested_csc()) {
+          nb::list col_py;
+          for (auto r : col)
+            col_py.append(static_cast<std::size_t>(r));
+          nested_py.append(col_py);
+        }
+        out["nested"] = nested_py;
+        return out;
+      },
+      nb::arg("n_rounds"), nb::arg("n_errs_per_round"),
+      nb::arg("n_syndromes_per_round"), nb::arg("weight"), nb::arg("seed") = 0,
+      R"pbdoc(
+        Same random PCM distribution as :func:`generate_random_pcm`, but
+        builds ``sparse_binary_matrix`` in CSC form without allocating a dense
+        ``rows x cols`` tensor (helps with large PCMs where dense allocation fails).
+      )pbdoc");
 
   qecmod.def(
       "get_pcm_for_rounds",
