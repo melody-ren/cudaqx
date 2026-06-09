@@ -362,34 +362,59 @@ bool decoder::enqueue_syndrome(const uint8_t *syndrome,
         return false;
       }
     }
+    // Process the results.
+    // TODO - should this interrogate the decoded_result.converged flag?
+    const auto result_type = get_result_type();
+    const auto num_observables = get_num_observables();
+    const std::size_t expected_result_size =
+        result_type == decode_result_type::decode_to_obs ? num_observables
+                                                         : block_size;
     if ((!pimpl->is_sliding_window &&
-         decoded_result.result.size() != block_size) ||
+         decoded_result.result.size() != expected_result_size) ||
         (pimpl->is_sliding_window && !decoded_result.result.empty() &&
-         decoded_result.result.size() != block_size)) {
-      throw std::runtime_error(
-          fmt::format("Decoder result size ({}) does not match block_size ({})",
-                      decoded_result.result.size(), block_size));
+         decoded_result.result.size() != expected_result_size)) {
+      throw std::runtime_error(fmt::format(
+          "Decoder result size ({}) does not match expected size ({}) for "
+          "result type {}",
+          decoded_result.result.size(), expected_result_size,
+          result_type == decode_result_type::decode_to_obs ? "decode_to_obs"
+                                                           : "decode_to_errs"));
     }
 
     if (should_log) {
       log_t2 = std::chrono::high_resolution_clock::now();
-      for (std::size_t e = 0, E = decoded_result.result.size(); e < E; e++)
-        if (decoded_result.result[e])
-          log_errors.push_back(e);
+      // TODO: log_errors is meaningful only for decode_to_errs; revisit on
+      // the logging pass.
+      if (result_type != decode_result_type::decode_to_obs) {
+        for (std::size_t e = 0, E = decoded_result.result.size(); e < E; e++)
+          if (decoded_result.result[e])
+            log_errors.push_back(e);
+      }
     }
-    // Process the results.
-    // TODO - should this interrogate the decoded_result.converged flag?
-    auto num_observables = O_sparse.size();
-    // For each observable
-    for (std::size_t i = 0; i < num_observables; i++) {
-      // For each error that flips this observable
-      for (auto col : O_sparse[i]) {
-        // If the decoder predicted that this error occurred
-        if (decoded_result.result[col]) {
-          // Flip the correction for this observable
+    if (result_type == decode_result_type::decode_to_obs) {
+      // Observable-frame path: decoder already projected to observables via its
+      // internal "O" matrix; use the result directly.
+      for (std::size_t i = 0; i < num_observables; i++) {
+        if (decoded_result.result[i]) {
           pimpl->corrections[i] ^= 1;
           if (should_log)
             log_observable_corrections[i] ^= 1;
+        }
+      }
+    } else {
+      // Error-frame path: decoder returns block-sized error vector; project to
+      // observables via O_sparse.
+      // For each observable
+      for (std::size_t i = 0; i < num_observables; i++) {
+        // For each error that flips this observable
+        for (auto col : O_sparse[i]) {
+          // If the decoder predicted that this error occurred
+          if (decoded_result.result[col]) {
+            // Flip the correction for this observable
+            pimpl->corrections[i] ^= 1;
+            if (should_log)
+              log_observable_corrections[i] ^= 1;
+          }
         }
       }
     }
