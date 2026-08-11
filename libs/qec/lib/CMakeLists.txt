@@ -44,7 +44,10 @@ set(DECODERS_SOURCES
   decoder_init.cpp
   decoder_config_payload.cpp
   decoder_config_schema.cpp
+  dem_chunks_memory.cpp
+  dem_construction.cpp
   detector_error_model.cpp
+  extended_dem.cpp
   logger.cpp
   logger_forwarder.cpp
   pcm_utils.cpp
@@ -58,6 +61,7 @@ set(DECODERS_SOURCES
 set(QEC_SOURCES
   code.cpp
   decoder_config_payload_provider.cpp
+  dem_construction_code.cpp
   experiments.cpp
   stabilizer_utils.cpp
 )

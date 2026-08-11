@@ -239,8 +239,20 @@ void validate_detector_rows(const std::vector<std::int64_t> &d_sparse,
 } // namespace
 
 cudaq::qec::decoder_init resolve_decoder_init(
-    const cudaq::qec::decoding::config::decoder_config &decoder_config,
+    const cudaq::qec::decoding::config::decoder_config &config_in,
     const std::filesystem::path &base_dir) {
+  // A chunk-form configuration names its DEM one round at a time. Expand it
+  // here, on every construction path, so everything below is written against
+  // the flat form only. The closed DEM carries a prior per fault, which the
+  // derived matrices do not, so it supplies error_rate_vec for configurations
+  // that did not set one.
+  auto expanded_config = config_in;
+  const auto closed_dem =
+      cudaq::qec::decoding::config::expand_dem_chunks(expanded_config);
+  if (closed_dem && expanded_config.error_rate_vec.empty())
+    expanded_config.error_rate_vec = closed_dem->error_rates;
+  const auto &decoder_config = expanded_config;
+
   if (decoder_config.D_sparse.empty())
     throw std::runtime_error(
         "D_sparse must be provided in decoder configuration");
@@ -252,10 +264,11 @@ cudaq::qec::decoder_init resolve_decoder_init(
     // The matrix keys are a competing representation of the same model, not
     // assertions about it, so supplying both leaves no single authority.
     if (!decoder_config.H_sparse.empty() || !decoder_config.O_sparse.empty() ||
-        !decoder_config.error_rate_vec.empty())
+        !decoder_config.error_rate_vec.empty() ||
+        decoder_config.dem_chunks.has_value())
       throw std::runtime_error(
-          "stim_dem_path is mutually exclusive with H_sparse, O_sparse and "
-          "error_rate_vec; supply exactly one model source");
+          "stim_dem_path is mutually exclusive with H_sparse, O_sparse, "
+          "error_rate_vec and dem_chunks; supply exactly one model source");
 
     // Absolute, not merely normalized: base_dir may itself be relative (a
     // server started with `configs/decoders.yml`), and a stored relative path

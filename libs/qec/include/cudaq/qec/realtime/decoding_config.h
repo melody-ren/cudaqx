@@ -9,6 +9,7 @@
 #pragma once
 
 #include "cuda-qx/core/heterogeneous_map.h"
+#include "cudaq/qec/extended_dem.h"
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -71,24 +72,47 @@ struct decoder_config {
   /// GPU-accelerated decoder, hence at this level rather than inside the
   /// per-decoder custom args. Unset = unpinned.
   std::optional<int> cuda_device_id;
+  /// The decoder model comes from exactly one of three sources:
+  ///
+  ///   - Stim DEM by path: stim_dem_path, authoritative when set.
+  ///   - Flat matrix form: H_sparse plus block_size, syndrome_size, O_sparse
+  ///     and error_rate_vec, all sized for the whole experiment.
+  ///   - Chunk form: dem_chunks (which carries phases, connections, seam, and
+  ///     num_rounds internally). The flat fields are derived by expanding the
+  ///     phases, and must be omitted. See expand_dem_chunks() for the
+  ///     derivation, which runs when the model is resolved at decoder
+  ///     construction so the rest of the pipeline only ever sees the flat
+  ///     form.
+  ///
   /// Path to a Stim detector error model, authoritative when set. Resolved
   /// against the configuration file's directory, or the process working
   /// directory for a programmatic or raw-string configuration. Mutually
-  /// exclusive with `H_sparse`, `O_sparse` and `error_rate_vec`, which are the
-  /// competing matrix representation of the same model; `block_size` and
+  /// exclusive with `H_sparse`, `O_sparse`, `error_rate_vec` and `dem_chunks`,
+  /// which are competing representations of the same model; `block_size` and
   /// `syndrome_size` remain accepted as checked assertions.
   std::string stim_dem_path;
-  /// Required for a matrix model; derived from the DEM otherwise. Zero means
-  /// unset.
+  /// Required for a matrix model; derived from the DEM or the chunk expansion
+  /// otherwise. Zero means unset.
   uint64_t block_size = 0;
   uint64_t syndrome_size = 0;
   std::vector<std::int64_t> H_sparse;
   std::vector<std::int64_t> O_sparse;
   /// Maps raw measurements to detectors. Orthogonal to the model source and
-  /// required by both.
+  /// required by every source except the chunk form, which derives it.
   std::vector<std::int64_t> D_sparse;
   /// Error probability per H column.
   std::vector<double> error_rate_vec;
+  /// Optional per-phase DEM for a streaming, repeated-round decomposition.
+  /// H_sparse above describes the whole experiment as one flat matrix; these
+  /// phases describe one round each so the round count can be chosen at run
+  /// time. num_rounds lives inside dem_chunks_spec. See
+  /// cudaq::qec::dem_chunks_from_spec() for expansion to a chunk sequence.
+  ///
+  /// A configuration that also has a nonempty H_sparse is flat, and that
+  /// matrix is the one decoders are built from. Form selection keys off
+  /// H_sparse.empty(). Nonempty H_sparse is exactly the state
+  /// expand_dem_chunks() leaves behind, allowing round-trip through YAML.
+  std::optional<cudaq::qec::dem_chunks_spec> dem_chunks;
   decoder_custom_args_t decoder_custom_args;
 
   bool operator==(const decoder_config &) const = default;
@@ -174,6 +198,25 @@ public:
   __attribute__((visibility("default"))) static multi_decoder_config
   from_yaml_str(const std::string_view yaml_str);
 };
+
+/// @brief Rewrite a chunk-form configuration into the equivalent flat form,
+/// filling block_size, syndrome_size, H_sparse, O_sparse and D_sparse from
+/// `dem_chunks` expanded `num_rounds` times. Everything downstream of this
+/// therefore only has to understand the flat form.
+///
+/// Does nothing to a configuration that is already flat (one whose `H_sparse`
+/// is nonempty, or which carries no `dem_chunks` at all), so it is safe to
+/// call unconditionally. An empty H_sparse with dem_chunks present is still
+/// treated as chunk form.
+///
+/// @return The closed DEM the flat fields were derived from, so a caller that
+///         also wants its per-fault priors does not have to expand a second
+///         time. Empty when the configuration was already flat.
+/// @throws std::runtime_error if `num_rounds` is missing, or if the phases
+///         cannot be expanded to that many rounds.
+__attribute__((visibility("default")))
+std::optional<cudaq::qec::detector_error_model>
+expand_dem_chunks(decoder_config &config);
 
 /// @brief Generate a JSON Schema (draft 2020-12) document describing valid
 /// `multi_decoder_config` YAML files, so third-party tools (check-jsonschema,
