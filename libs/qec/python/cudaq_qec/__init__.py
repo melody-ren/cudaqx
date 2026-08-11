@@ -100,6 +100,8 @@ z_dem_from_memory_circuit = qecrt.z_dem_from_memory_circuit
 decoder_context_from_memory_circuit = qecrt.decoder_context_from_memory_circuit
 DecoderContext = qecrt.DecoderContext
 d_sparse = qecrt.d_sparse
+DecodingTaskGraph = qecrt.DecodingTaskGraph
+LogicalOutcome = qecrt.LogicalOutcome
 
 dump_pcm = qecrt.dump_pcm
 generate_random_pcm = qecrt.generate_random_pcm

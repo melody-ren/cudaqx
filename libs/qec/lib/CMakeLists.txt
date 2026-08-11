@@ -55,6 +55,7 @@ set(DECODERS_SOURCES
   sparse_binary_matrix.cpp
   decoders/lut.cpp
   decoders/sliding_window.cpp
+  decoding_task_graph.cpp
   version.cpp
 )
 
@@ -92,6 +93,18 @@ endif()
 if(NOT TARGET libstim)
   message(FATAL_ERROR
     "Stim FetchContent did not provide the libstim target.")
+endif()
+
+# Same nlohmann/json pin as libs/solvers (which matches CUDA-Q); header-only,
+# used privately by decoding_task_graph.cpp for the dtg-kinds/v0 IR dialect.
+if(NOT TARGET nlohmann_json::nlohmann_json)
+  FetchContent_Declare(
+    json
+    GIT_REPOSITORY https://github.com/nlohmann/json
+    GIT_TAG v3.12.0
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_MakeAvailable(json)
 endif()
 set_target_properties(${LIBRARY_NAME} PROPERTIES
   VISIBILITY_INLINES_HIDDEN ON
@@ -160,6 +173,7 @@ target_link_libraries(${DECODERS_LIBRARY_NAME}
     # decoder::get() consumes the "cuda_device_id" construction parameter
     # (validation via cudaGetDeviceCount + persistent cudaSetDevice pin).
     CUDA::cudart
+    nlohmann_json::nlohmann_json
 )
 
 target_link_libraries(${LIBRARY_NAME}

@@ -74,6 +74,18 @@ else()
                  "(cudaq-qec-decoding-server not built)")
 endif()
 
+add_executable(test_decoding_task_graph test_decoding_task_graph.cpp)
+target_link_libraries(test_decoding_task_graph PRIVATE GTest::gtest_main
+                                               cudaq-qec-decoders
+                                               nlohmann_json::nlohmann_json)
+target_compile_definitions(test_decoding_task_graph PRIVATE
+  TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/dtg_data")
+# The checked-in fixtures bind "decoder:pymatching", loaded at runtime from
+# lib/decoder-plugins.
+add_dependencies(test_decoding_task_graph cudaq-qec-pymatching)
+add_dependencies(CUDAQXQECUnitTests test_decoding_task_graph)
+gtest_discover_tests(test_decoding_task_graph)
+
 add_executable(test_qec test_qec.cpp)
 target_link_libraries(test_qec PRIVATE GTest::gtest_main cudaq-qec cudaq::cudaq-stim-target)
 add_dependencies(CUDAQXQECUnitTests test_qec)
