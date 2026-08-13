@@ -28,10 +28,14 @@ struct measurement_results {
   std::uint64_t tag = 0;
 };
 
-/// @brief Detection events produced by a `d_apply` node (one entry per
-/// detector, 0.0/1.0 for hard events).
+/// @brief Detection events (one entry per detector, 0.0/1.0 for hard
+/// events). Produced by a `d_apply` node, carried on `delta` edges between
+/// compiled tasking nodes, and accepted directly by run() for graphs whose
+/// declared input is detection events. `converged` propagates decoder
+/// convergence along detector-delta edges; it is true for raw inputs.
 struct detection_events {
   std::vector<float_t> events;
+  bool converged = true;
 };
 
 /// @brief Decoder output produced by a `decode` node, in the error basis.
@@ -59,6 +63,26 @@ struct logical_outcome {
 /// observable). All model matrices (D, H, O) and the decoders themselves are
 /// fixed at graph construction.
 ///
+/// Graphs also load from a partitioned tasking bundle (see from_bundle),
+/// which adds the compiled node kinds `ingest` (identity on the graph
+/// input), `compiled_decode` (a solve: slices its declared detector domain
+/// out of the global detection events, XORs in typed detector deltas, and
+/// decodes with its own local DEM into a correction-candidate vector, one
+/// candidate per local-DEM observable), `compiled_effect_view` (a sparse
+/// GF(2) apply of one precomputed project-to-commit payload: candidate ->
+/// logical contribution and, when the view owns boundary detectors, a
+/// detector delta), `compiled_contribution` (a fused solve + effect view)
+/// and `combine_xor` (variadic GF(2) fold of logical contributions). All of
+/// these are likewise fixed at load: run() follows the wiring and decides
+/// nothing.
+///
+/// Graph-input semantics: run()'s input is whatever the loaded graph
+/// declares as its external input port. dtg-kinds/v0 graphs start at raw
+/// measurements (a `d_apply` front), so they take measurement_results;
+/// tasking bundles start at detection events (measurement-to-detector
+/// conversion is deferred upstream), so they take detection_events. Calling
+/// the wrong overload throws.
+///
 /// Canonical IR form: to_ir_json() re-emits exactly the keys and array
 /// orderings that from_ir_json() loaded, so a load/re-emit round trip is
 /// equal to the input modulo JSON object key order (numeric values are
@@ -74,11 +98,43 @@ public:
   /// unresolvable binding_refs throw std::runtime_error.
   static decoding_task_graph from_ir_json(const std::string &ir_json);
 
+  /// @brief Load a graph from a `decoder-tasking-bundle/v1` directory.
+  ///
+  /// Reads `manifest.json`, verifies the SHA-256 (and size) of the program
+  /// and of every inventoried artifact against the manifest, loads the
+  /// `decoder-task-graph-ir/v1` program and resolves every `dem` and
+  /// `project_view` artifact through its content-addressed URI (paths are
+  /// confined to the bundle root). Any hash/size/inventory mismatch throws.
+  /// Every `compiled_decode`/`compiled_contribution` node's decoder is
+  /// constructed now, from that node's own local DEM (H, priors and
+  /// observables), via decoder_init -> get_decoder(@p decoder_name)
+  /// requesting observable output — the same binding the reference runtime
+  /// applies. The default, "pymatching", matches the reference binder.
+  static decoding_task_graph
+  from_bundle(const std::string &bundle_dir,
+              const std::string &decoder_name = "pymatching");
+
   /// @brief Execute one shot synchronously. Returns one logical_outcome per
-  /// `root` node, ordered by the roots' `observable_index` param.
+  /// `root` node, ordered by the roots' `observable_index` param. Only valid
+  /// for graphs whose declared input is raw measurements (a `d_apply`
+  /// front); throws otherwise.
   std::vector<logical_outcome> run(const measurement_results &measurements);
 
-  /// @brief Re-emit the loaded IR in canonical form (see class docs).
+  /// @brief Execute one shot on detection events. Only valid for graphs
+  /// whose declared input is detection events (tasking bundles); throws
+  /// otherwise. Returns one logical_outcome per external output, ordered as
+  /// output_names().
+  std::vector<logical_outcome> run(const detection_events &events);
+
+  /// @brief Names of the graph's outputs, aligned with run()'s result. For
+  /// bundle-loaded graphs these are the program's external output names in
+  /// lexicographic order; for dtg-kinds/v0 graphs they are the root node ids
+  /// ordered by observable_index.
+  const std::vector<std::string> &output_names() const;
+
+  /// @brief Re-emit the loaded IR in canonical form (see class docs). Only
+  /// supported for graphs loaded from dtg-kinds/v0 IR; bundle-loaded graphs
+  /// throw (the bundle on disk stays the canonical artifact).
   std::string to_ir_json() const;
 
   decoding_task_graph(const decoding_task_graph &) = default;

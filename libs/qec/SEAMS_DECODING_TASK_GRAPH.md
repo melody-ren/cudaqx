@@ -28,22 +28,69 @@ expected to replace the internals freely while keeping these seams.
 
 ## Interface (the e2e harness is written against exactly this)
 
-- C++: `cudaq::qec::decoding_task_graph::{from_ir_json, run, to_ir_json}` with
-  wire types `measurement_results{bits, tag}` → … → `logical_outcome{bits,
-  converged}` (see header).
+- C++: `cudaq::qec::decoding_task_graph::{from_ir_json, from_bundle, run,
+  output_names, to_ir_json}` with wire types `measurement_results{bits,
+  tag}` / `detection_events{events, converged}` → … →
+  `logical_outcome{bits, converged}` (see header).
 - Python: `cudaq_qec.DecodingTaskGraph.from_ir_json(str)`,
-  `.run(bits, tag=0) -> list[LogicalOutcome]`, `.to_ir_json()`.
+  `.from_bundle(dir, decoder="pymatching")`,
+  `.run(bits, tag=0) -> list[LogicalOutcome]`,
+  `.run_detection_events(events)`, `.output_names()`, `.to_ir_json()`.
+
+## Tasking bundles (partitioned compiled programs)
+
+`from_bundle(dir)` loads a `decoder-tasking-bundle/v1` directory: it reads
+`manifest.json`, verifies the SHA-256 and size of the program and of every
+inventoried artifact (fail-loud on any mismatch, including audit sidecars),
+loads the `decoder-task-graph-ir/v1` program, and resolves each `dem` /
+`project_view` artifact through its content-addressed URI, confined to the
+bundle root. Pass-by-path is the contract: payloads are never inlined into
+a mega-JSON.
+
+Supported task `binding_ref`s: `ingest` (identity), `compiled_decode` (a
+solve — slices `partition.domain_detectors` out of the global detection
+events, XORs typed detector deltas in at their port-binding positions, and
+decodes with its own local DEM into one candidate bit per local-DEM
+observable), `compiled_effect_view` (sparse GF(2) apply of a
+`decoder-tasking-project-to-commit/v1` payload: candidate → `L` logical
+contribution and, when the view owns boundary detectors, a `delta`),
+`compiled_contribution` (fused solve + view) and `combine_xor` /`xor`
+(GF(2) fold to the external outputs). Solve decoders are constructed at
+load via decoder_init → get_decoder with observable output; the default
+`pymatching` binding matches the reference runtime (local DEMs are parsed
+with decomposition suggestions expanded, mirroring PyMatching's
+from_detector_error_model). Everything is fixed at load; run() follows the
+wiring and decides nothing. Unsupported program features (composite task
+bodies, guards, solve-owned logical outputs, logical-from-solve views)
+fail loudly at load, matching the Stage-1 reference binder.
+
+These bundles start at detection events — measurement-to-detector
+conversion is deferred upstream — so run()'s input is the graph's declared
+input port: `detection_events` here, `measurement_results` when a
+`d_apply` front exists. Roots are synthesized from `external_outputs`, one
+per output name in lexicographic order (`output_names()` gives the
+alignment). Bundle-loaded graphs do not re-emit IR: the bundle directory
+on disk stays the canonical artifact.
 
 ## Verification shipped with the stub
 
-- `unittests/test_decoding_task_graph.cpp` (5 groups): IR round-trip,
+- `unittests/test_decoding_task_graph.cpp` (7 groups): IR round-trip,
   **parity vs direct decoder + manual D/O** (the graph is a faithful
-  re-plumbing), two-root + xor fan-in, 14 error paths, fixture load/run.
+  re-plumbing), two-root + xor fan-in, 14 error paths, fixture load/run,
+  bundle load + hand-computed per-kind semantics, and bundle tamper
+  detection.
 - `unittests/dtg_data/*.json`: two self-contained fixtures emitted by the IR
   reference serde — a monolithic d=5 memory and a **two-root fixture from a
   real disjoint-component decomposition**. An external harness holds the stub
   to 1000/1000 shot-exact agreement against two independent references on
   both fixtures.
+- `unittests/dtg_data/mini_bundle/`: a hand-written synthetic
+  `decoder-tasking-bundle/v1` (two solves, three views, one detector-delta
+  handoff, a fused contribution, a variadic xor, two external outputs)
+  exercising every compiled node kind with hand-computed expectations, plus
+  manifest tamper tests. An external harness additionally holds
+  `from_bundle` to shot-exact agreement against the reference bundle
+  runtime on a real 63-task partitioned program.
 
 ## Base statement
 

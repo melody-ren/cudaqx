@@ -1,0 +1,431 @@
+{
+ "correction_views": [
+  {
+   "candidate_binding": [
+    "solve_a",
+    "basis-a"
+   ],
+   "detector_binding": [
+    2
+   ],
+   "id": "view_a",
+   "logical_binding": [
+    0
+   ],
+   "responsibility_scope": "commit",
+   "sha256": "09e484ab29189ccd0de9eecc18f53a9c35bd8970db5351746eb8942864639d66",
+   "uri": "views/view_a.view"
+  },
+  {
+   "candidate_binding": [
+    "solve_b",
+    "basis-b"
+   ],
+   "detector_binding": [],
+   "id": "view_b",
+   "logical_binding": [
+    0
+   ],
+   "responsibility_scope": "final",
+   "sha256": "41aba7614308be8434c22be5dbe959a906a81f75f8f6d749babf0e675d826570",
+   "uri": "views/view_b.view"
+  },
+  {
+   "candidate_binding": [
+    "contrib_c",
+    "basis-c"
+   ],
+   "detector_binding": [],
+   "id": "view_c",
+   "logical_binding": [
+    0
+   ],
+   "responsibility_scope": "contribution",
+   "sha256": "17ebdd62236ceeb54aaf704093362eebd9f1f362c78ca952822039c61ba4ac9b",
+   "uri": "views/view_c.view"
+  }
+ ],
+ "dems": [
+  {
+   "id": "dem_a",
+   "num_detectors": 2,
+   "num_errors": 2,
+   "num_observables": 2,
+   "sha256": "1e324121f5c80f4a5dea8acffd97e908d4410a066fcb0d911231605acbf6f2d0",
+   "uri": "dems/dem_a.dem"
+  },
+  {
+   "id": "dem_b",
+   "num_detectors": 2,
+   "num_errors": 2,
+   "num_observables": 2,
+   "sha256": "1e324121f5c80f4a5dea8acffd97e908d4410a066fcb0d911231605acbf6f2d0",
+   "uri": "dems/dem_b.dem"
+  }
+ ],
+ "edges": [
+  [
+   [
+    "ingest",
+    "s"
+   ],
+   [
+    "solve_a",
+    "s"
+   ]
+  ],
+  [
+   [
+    "ingest",
+    "s"
+   ],
+   [
+    "solve_b",
+    "s"
+   ]
+  ],
+  [
+   [
+    "ingest",
+    "s"
+   ],
+   [
+    "contrib_c",
+    "s"
+   ]
+  ],
+  [
+   [
+    "solve_a",
+    "candidate"
+   ],
+   [
+    "view_a",
+    "candidate"
+   ]
+  ],
+  [
+   [
+    "view_a",
+    "delta"
+   ],
+   [
+    "solve_b",
+    "delta_0"
+   ]
+  ],
+  [
+   [
+    "solve_b",
+    "candidate"
+   ],
+   [
+    "view_b",
+    "candidate"
+   ]
+  ],
+  [
+   [
+    "view_a",
+    "L"
+   ],
+   [
+    "aggregate",
+    "contribution_0"
+   ]
+  ],
+  [
+   [
+    "view_b",
+    "L"
+   ],
+   [
+    "aggregate",
+    "contribution_1"
+   ]
+  ],
+  [
+   [
+    "contrib_c",
+    "L"
+   ],
+   [
+    "aggregate",
+    "contribution_2"
+   ]
+  ]
+ ],
+ "external_inputs": {
+  "s": [
+   "ingest",
+   "s_in"
+  ]
+ },
+ "external_outputs": {
+  "a_direct": [
+   "view_b",
+   "L"
+  ],
+  "obs_total": [
+   "aggregate",
+   "L"
+  ]
+ },
+ "metadata": {
+  "example": "mini_bundle",
+  "producer": "hand-written synthetic fixture"
+ },
+ "schema_version": "decoder-task-graph-ir/v1",
+ "tasks": [
+  {
+   "binding_ref": "ingest",
+   "body": null,
+   "guard": null,
+   "id": "ingest",
+   "inputs": [
+    {
+     "name": "s_in",
+     "type": {
+      "binding": [],
+      "type": "detection_events"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "s",
+     "type": {
+      "binding": [],
+      "type": "detection_events"
+     }
+    }
+   ]
+  },
+  {
+   "binding_ref": "compiled_decode",
+   "body": null,
+   "dem_ref": "dem_a",
+   "guard": null,
+   "id": "solve_a",
+   "inputs": [
+    {
+     "name": "s",
+     "type": {
+      "binding": [],
+      "type": "detection_events"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "candidate",
+     "type": {
+      "binding": [
+       "solve_a",
+       "basis-a"
+      ],
+      "type": "correction_candidate"
+     }
+    }
+   ],
+   "partition": {
+    "domain_detectors": [
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "binding_ref": "compiled_effect_view",
+   "body": null,
+   "correction_view_ref": "view_a",
+   "guard": null,
+   "id": "view_a",
+   "inputs": [
+    {
+     "name": "candidate",
+     "type": {
+      "binding": [
+       "solve_a",
+       "basis-a"
+      ],
+      "type": "correction_candidate"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "L",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    },
+    {
+     "name": "delta",
+     "type": {
+      "binding": [
+       2
+      ],
+      "type": "detection_events"
+     }
+    }
+   ]
+  },
+  {
+   "binding_ref": "compiled_decode",
+   "body": null,
+   "dem_ref": "dem_b",
+   "guard": null,
+   "id": "solve_b",
+   "inputs": [
+    {
+     "name": "s",
+     "type": {
+      "binding": [],
+      "type": "detection_events"
+     }
+    },
+    {
+     "name": "delta_0",
+     "type": {
+      "binding": [
+       2
+      ],
+      "type": "detection_events"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "candidate",
+     "type": {
+      "binding": [
+       "solve_b",
+       "basis-b"
+      ],
+      "type": "correction_candidate"
+     }
+    }
+   ],
+   "partition": {
+    "domain_detectors": [
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "binding_ref": "compiled_effect_view",
+   "body": null,
+   "correction_view_ref": "view_b",
+   "guard": null,
+   "id": "view_b",
+   "inputs": [
+    {
+     "name": "candidate",
+     "type": {
+      "binding": [
+       "solve_b",
+       "basis-b"
+      ],
+      "type": "correction_candidate"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "L",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    }
+   ]
+  },
+  {
+   "binding_ref": "compiled_contribution",
+   "body": null,
+   "correction_view_ref": "view_c",
+   "dem_ref": "dem_a",
+   "guard": null,
+   "id": "contrib_c",
+   "inputs": [
+    {
+     "name": "s",
+     "type": {
+      "binding": [],
+      "type": "detection_events"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "L",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    }
+   ],
+   "partition": {
+    "domain_detectors": [
+     0,
+     1
+    ]
+   }
+  },
+  {
+   "binding_ref": "combine_xor",
+   "body": null,
+   "guard": null,
+   "id": "aggregate",
+   "inputs": [
+    {
+     "name": "contribution_0",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    },
+    {
+     "name": "contribution_1",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    },
+    {
+     "name": "contribution_2",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "name": "L",
+     "type": {
+      "binding": [
+       0
+      ],
+      "type": "logical_outcome"
+     }
+    }
+   ]
+  }
+ ]
+}

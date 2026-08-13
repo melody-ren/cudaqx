@@ -1,0 +1,23 @@
+{
+ "candidate_binding": [
+  "contrib_c",
+  "basis-c"
+ ],
+ "candidate_count": 2,
+ "committed_candidate_indices": [
+  1
+ ],
+ "detector_binding": [],
+ "detector_effect_rows": [],
+ "logical_binding": [
+  0
+ ],
+ "logical_effect_rows": [
+  [
+   1
+  ]
+ ],
+ "logical_from_solve": false,
+ "responsibility_scope": "contribution",
+ "schema_version": "decoder-tasking-project-to-commit/v1"
+}

@@ -1,0 +1,54 @@
+{
+ "artifacts": [
+  {
+   "artifact_id": "dem_a",
+   "artifact_kind": "dem",
+   "sha256": "1e324121f5c80f4a5dea8acffd97e908d4410a066fcb0d911231605acbf6f2d0",
+   "size_bytes": 37,
+   "uri": "dems/dem_a.dem"
+  },
+  {
+   "artifact_id": "dem_b",
+   "artifact_kind": "dem",
+   "sha256": "1e324121f5c80f4a5dea8acffd97e908d4410a066fcb0d911231605acbf6f2d0",
+   "size_bytes": 37,
+   "uri": "dems/dem_b.dem"
+  },
+  {
+   "artifact_id": "view_a",
+   "artifact_kind": "project_view",
+   "sha256": "09e484ab29189ccd0de9eecc18f53a9c35bd8970db5351746eb8942864639d66",
+   "size_bytes": 398,
+   "uri": "views/view_a.view"
+  },
+  {
+   "artifact_id": "view_b",
+   "artifact_kind": "project_view",
+   "sha256": "41aba7614308be8434c22be5dbe959a906a81f75f8f6d749babf0e675d826570",
+   "size_bytes": 382,
+   "uri": "views/view_b.view"
+  },
+  {
+   "artifact_id": "view_c",
+   "artifact_kind": "project_view",
+   "sha256": "17ebdd62236ceeb54aaf704093362eebd9f1f362c78ca952822039c61ba4ac9b",
+   "size_bytes": 380,
+   "uri": "views/view_c.view"
+  },
+  {
+   "artifact_id": "notes",
+   "artifact_kind": "audit",
+   "sha256": "b27230880187ca884274daaf68ebcdea9484546b26d582d77a0251186b3cbd07",
+   "size_bytes": 52,
+   "uri": "audit/notes.artifact"
+  }
+ ],
+ "metadata": {
+  "example": "mini_bundle"
+ },
+ "program": {
+  "sha256": "db6cc7b0c456538e62e940359e3a401153a0bda429dbda88c1c8ec5ee4ee6aec",
+  "uri": "program.json"
+ },
+ "schema_version": "decoder-tasking-bundle/v1"
+}

@@ -1,0 +1,30 @@
+{
+ "candidate_binding": [
+  "solve_a",
+  "basis-a"
+ ],
+ "candidate_count": 2,
+ "committed_candidate_indices": [
+  0,
+  1
+ ],
+ "detector_binding": [
+  2
+ ],
+ "detector_effect_rows": [
+  [
+   1
+  ]
+ ],
+ "logical_binding": [
+  0
+ ],
+ "logical_effect_rows": [
+  [
+   0
+  ]
+ ],
+ "logical_from_solve": false,
+ "responsibility_scope": "commit",
+ "schema_version": "decoder-tasking-project-to-commit/v1"
+}

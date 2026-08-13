@@ -8,6 +8,7 @@
 
 #include "cudaq/qec/decoding_task_graph.h"
 
+#include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -15,6 +16,7 @@
 
 using json = nlohmann::json;
 using cudaq::qec::decoding_task_graph;
+using cudaq::qec::detection_events;
 using cudaq::qec::measurement_results;
 
 namespace {
@@ -311,4 +313,163 @@ TEST(DecodingTaskGraphTest, FixtureSmokeSingleShot) {
       EXPECT_TRUE(oc.converged) << fc.file;
     }
   }
+}
+
+// ---- Tasking-bundle loading (from_bundle) ---------------------------------
+//
+// The mini_bundle fixture is a hand-written synthetic
+// decoder-tasking-bundle/v1 over 4 global detectors:
+//
+//   ingest -> solve_a (domain [0,1], dem_a) -> view_a (L = c0; delta on
+//   global detector 2 = c1) -> solve_b (domain [2,3], dem_b, delta_0 bound
+//   to [2]) -> view_b (L = c0 ^ c1); contrib_c (fused solve+view on domain
+//   [0,1], dem_a, L = c1); aggregate = combine_xor(view_a.L, view_b.L,
+//   contrib_c.L). External outputs: obs_total = aggregate.L, a_direct =
+//   view_b.L.
+//
+// dem_a == dem_b == { e0: D0 L0 (p=.1), e1: D0 D1 L1 (p=.1) }, so MWPM maps
+// a local syndrome to a candidate as (0,0)->(0,0), (1,0)->(1,0),
+// (1,1)->(0,1), (0,1)->(1,1).
+
+namespace {
+
+std::filesystem::path mini_bundle_path() {
+  return std::filesystem::path(TEST_DATA_DIR) / "mini_bundle";
+}
+
+/// Copy the fixture bundle into a fresh temp directory the test may tamper
+/// with.
+std::filesystem::path copy_bundle_to_temp(const std::string &tag) {
+  auto dst = std::filesystem::temp_directory_path() /
+             ("dtg_mini_bundle_" + tag + "_" + std::to_string(::getpid()));
+  std::filesystem::remove_all(dst);
+  std::filesystem::copy(mini_bundle_path(), dst,
+                        std::filesystem::copy_options::recursive);
+  return dst;
+}
+
+std::vector<std::uint8_t> run_bundle_shot(decoding_task_graph &g,
+                                          std::vector<std::uint8_t> events) {
+  detection_events in;
+  for (auto e : events)
+    in.events.push_back(static_cast<cudaq::qec::float_t>(e));
+  auto outcomes = g.run(in);
+  std::vector<std::uint8_t> bits;
+  for (const auto &oc : outcomes) {
+    EXPECT_EQ(oc.bits.size(), 1u);
+    EXPECT_TRUE(oc.converged);
+    bits.push_back(oc.bits[0]);
+  }
+  return bits;
+}
+
+} // namespace
+
+// (f) Bundle load + per-kind execution semantics, hand-computed. Exercises
+// compiled_decode, compiled_effect_view (logical and detector-delta
+// outputs), the delta handoff into a downstream solve, a fused
+// compiled_contribution, and the variadic combine_xor aggregation.
+TEST(DecodingTaskGraphTest, BundleLoadAndRunMiniBundle) {
+  auto g = decoding_task_graph::from_bundle(mini_bundle_path().string());
+
+  // External outputs are ordered lexicographically by name (the program
+  // lists obs_total first).
+  ASSERT_EQ(g.output_names(),
+            (std::vector<std::string>{"a_direct", "obs_total"}));
+
+  struct shot_case {
+    std::vector<std::uint8_t> events;      // (g0, g1, g2, g3)
+    std::vector<std::uint8_t> expected;    // (a_direct, obs_total)
+  };
+  // Derivation per shot: cand_a = mwpm(g0, g1); L_a = a0; delta = a1;
+  // L_c = a1; cand_b = mwpm(g2 ^ delta, g3); L_b = b0 ^ b1;
+  // a_direct = L_b; obs_total = L_a ^ L_b ^ L_c.
+  const std::vector<shot_case> shots = {
+      {{0, 0, 0, 0}, {0, 0}},
+      {{1, 0, 0, 0}, {0, 1}}, // solve_a alone flips L0
+      {{1, 1, 0, 0}, {1, 0}}, // delta handoff: b sees (1, 0) though g2 = 0
+      {{0, 1, 0, 0}, {1, 1}}, // boundary path in a: cand_a = (1, 1)
+      {{0, 1, 0, 1}, {1, 1}}, // delta + boundary path in b
+      {{0, 0, 1, 0}, {1, 1}}, // solve_b alone
+  };
+  for (const auto &shot : shots)
+    EXPECT_EQ(run_bundle_shot(g, shot.events), shot.expected)
+        << "events (" << int(shot.events[0]) << ", " << int(shot.events[1])
+        << ", " << int(shot.events[2]) << ", " << int(shot.events[3]) << ")";
+
+  // A bundle graph's declared input is detection events, not measurements,
+  // and there is no v0 IR to re-emit.
+  EXPECT_THROW(g.run(measurement_results{{0, 0, 0, 0}, 0}),
+               std::runtime_error);
+  EXPECT_THROW(g.to_ir_json(), std::runtime_error);
+  // Too-short detection events: a solve's domain index falls out of range.
+  EXPECT_THROW(g.run(detection_events{{0.0, 0.0}}), std::runtime_error);
+
+  // Symmetrically, a v0 graph refuses detection events.
+  auto v0 = decoding_task_graph::from_ir_json(tiny_ir);
+  EXPECT_THROW(v0.run(detection_events{{0.0, 0.0}}), std::runtime_error);
+  EXPECT_EQ(v0.output_names(), std::vector<std::string>{"root_0"});
+}
+
+// (g) Manifest integrity: any byte changed under the manifest's hashes must
+// fail the load loudly.
+TEST(DecodingTaskGraphTest, BundleTamperDetection) {
+  // Baseline: the pristine copy loads.
+  auto pristine = copy_bundle_to_temp("pristine");
+  EXPECT_NO_THROW(decoding_task_graph::from_bundle(pristine.string()));
+  std::filesystem::remove_all(pristine);
+
+  // Tampered DEM payload.
+  auto dem_dir = copy_bundle_to_temp("dem");
+  {
+    std::ofstream out(dem_dir / "dems" / "dem_a.dem",
+                      std::ios::binary | std::ios::app);
+    out << "error(0.2) D1 L0\n";
+  }
+  EXPECT_THROW(decoding_task_graph::from_bundle(dem_dir.string()),
+               std::runtime_error);
+  std::filesystem::remove_all(dem_dir);
+
+  // Tampered program.
+  auto prog_dir = copy_bundle_to_temp("program");
+  {
+    std::ofstream out(prog_dir / "program.json",
+                      std::ios::binary | std::ios::app);
+    out << "\n";
+  }
+  EXPECT_THROW(decoding_task_graph::from_bundle(prog_dir.string()),
+               std::runtime_error);
+  std::filesystem::remove_all(prog_dir);
+
+  // Tampered project-view payload (audit artifacts are hash-checked the
+  // same way).
+  auto view_dir = copy_bundle_to_temp("view");
+  {
+    std::ofstream out(view_dir / "views" / "view_a.view",
+                      std::ios::binary | std::ios::app);
+    out << " ";
+  }
+  EXPECT_THROW(decoding_task_graph::from_bundle(view_dir.string()),
+               std::runtime_error);
+  std::filesystem::remove_all(view_dir);
+
+  // Missing artifact file.
+  auto missing_dir = copy_bundle_to_temp("missing");
+  std::filesystem::remove(missing_dir / "views" / "view_b.view");
+  EXPECT_THROW(decoding_task_graph::from_bundle(missing_dir.string()),
+               std::runtime_error);
+  std::filesystem::remove_all(missing_dir);
+
+  // Manifest artifact hash rewritten (valid hex, wrong digest).
+  auto manifest_dir = copy_bundle_to_temp("manifest");
+  {
+    auto path = manifest_dir / "manifest.json";
+    auto doc = json::parse(read_file(path.string()));
+    doc["artifacts"][0]["sha256"] = std::string(64, '0');
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out << doc.dump(1);
+  }
+  EXPECT_THROW(decoding_task_graph::from_bundle(manifest_dir.string()),
+               std::runtime_error);
+  std::filesystem::remove_all(manifest_dir);
 }

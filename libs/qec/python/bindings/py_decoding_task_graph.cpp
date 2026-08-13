@@ -42,6 +42,19 @@ void bindDecodingTaskGraph(nb::module_ &mod) {
           "Load a graph from dtg-kinds/v0 IR JSON, constructing every decode "
           "node's decoder. Raises RuntimeError on malformed IR, unknown node "
           "kinds or unresolvable binding_refs.")
+      .def_static(
+          "from_bundle",
+          [](const std::string &bundle_dir, const std::string &decoder) {
+            return decoding_task_graph::from_bundle(bundle_dir, decoder);
+          },
+          nb::arg("bundle_dir"), nb::arg("decoder") = "pymatching",
+          "Load a graph from a decoder-tasking-bundle/v1 directory: verifies "
+          "every SHA-256 in manifest.json, loads program.json, and resolves "
+          "the content-addressed DEM and project-view artifacts. Every solve "
+          "node's decoder is constructed now from its own local DEM via the "
+          "named decoder plugin (default 'pymatching', matching the "
+          "reference binder). Raises RuntimeError on any integrity or "
+          "structural failure.")
       .def(
           "run",
           [](decoding_task_graph &self, const std::vector<std::uint8_t> &bits,
@@ -49,9 +62,29 @@ void bindDecodingTaskGraph(nb::module_ &mod) {
             return self.run(measurement_results{bits, tag});
           },
           nb::arg("bits"), nb::arg("tag") = 0,
-          "Execute one shot on raw measurement bits. Returns one "
-          "LogicalOutcome per root node, ordered by the roots' "
-          "observable_index.")
+          "Execute one shot on raw measurement bits (graphs with a d_apply "
+          "front). Returns one LogicalOutcome per root node, ordered by the "
+          "roots' observable_index.")
+      .def(
+          "run_detection_events",
+          [](decoding_task_graph &self,
+             const std::vector<std::uint8_t> &events) {
+            detection_events in;
+            in.events.reserve(events.size());
+            for (auto e : events)
+              in.events.push_back(static_cast<float_t>(e & 1u));
+            return self.run(in);
+          },
+          nb::arg("events"),
+          "Execute one shot on detection events (bundle-loaded graphs, whose "
+          "declared input is detection events). Returns one LogicalOutcome "
+          "per external output, ordered as output_names().")
+      .def(
+          "output_names",
+          [](const decoding_task_graph &self) { return self.output_names(); },
+          "Output names aligned with run()'s result: external output names "
+          "in lexicographic order for bundle-loaded graphs, root node ids "
+          "ordered by observable_index for dtg-kinds/v0 graphs.")
       .def(
           "to_ir_json",
           [](const decoding_task_graph &self) { return self.to_ir_json(); },
