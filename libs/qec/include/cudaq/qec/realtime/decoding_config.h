@@ -9,6 +9,7 @@
 #pragma once
 
 #include "cuda-qx/core/heterogeneous_map.h"
+#include "cudaq/qec/extended_dem.h"
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -71,17 +72,31 @@ struct decoder_config {
   /// GPU-accelerated decoder, hence at this level rather than inside the
   /// per-decoder custom args. Unset = unpinned.
   std::optional<int> cuda_device_id;
-  /// Path to a Stim detector error model, authoritative when set. Resolved
-  /// against the configuration file's directory, or the process working
-  /// directory for a programmatic or raw-string configuration. Mutually
-  /// exclusive with `H_sparse`, `O_sparse` and `error_rate_vec`, which are the
-  /// competing matrix representation of the same model; `block_size` and
-  /// `syndrome_size` remain accepted as checked assertions.
-  std::string stim_dem_path;
-  /// Required for a matrix model; derived from the DEM otherwise. Zero means
-  /// unset.
+  /// The fields below describe the DEM three alternative ways, and exactly
+  /// one of them applies:
+  ///
+  ///   - Flat form: H_sparse plus block_size, syndrome_size, O_sparse,
+  ///     D_sparse and optional error_rate_vec, all sized for the whole
+  ///     experiment.
+  ///   - Chunk form: dem_chunks (which carries phases, connections, seam, and
+  ///     num_rounds internally). The flat fields are derived by expanding the
+  ///     phases, and must be omitted.
+  ///   - DEM form: stim_dem_path, the Stim model text itself. The decoder
+  ///     derives its dimensions, observable mapping and error rates from it.
+  ///     H_sparse, O_sparse and error_rate_vec must be omitted; D_sparse is
+  ///     still required, while block_size and syndrome_size are optional
+  ///     checked assertions.
+  ///
+  /// See expand_dem_chunks() for the chunk-form derivation, which runs at
+  /// decoder construction so the rest of the pipeline only ever sees the flat
+  /// form. DEM form stays authoritative: the model text is what the decoder is
+  /// built from.
   uint64_t block_size = 0;
   uint64_t syndrome_size = 0;
+  /// Path to an authoritative Stim detector error model. Relative paths are
+  /// resolved against the configuration file's directory, or the process
+  /// working directory for a programmatic or raw-string configuration.
+  std::string stim_dem_path;
   std::vector<std::int64_t> H_sparse;
   std::vector<std::int64_t> O_sparse;
   /// Maps raw measurements to detectors. Orthogonal to the model source and
@@ -89,6 +104,17 @@ struct decoder_config {
   std::vector<std::int64_t> D_sparse;
   /// Error probability per H column.
   std::vector<double> error_rate_vec;
+  /// Optional per-phase DEM for a streaming, repeated-round decomposition.
+  /// H_sparse above describes the whole experiment as one flat matrix; these
+  /// phases describe one round each so the round count can be chosen at run
+  /// time. num_rounds lives inside dem_chunks_spec. See
+  /// cudaq::qec::dem_chunks_from_spec() for expansion to a chunk sequence.
+  ///
+  /// A configuration that also has a nonempty H_sparse is flat, and that
+  /// matrix is the one decoders are built from. Form selection keys off
+  /// H_sparse.empty(). Nonempty H_sparse is exactly the state
+  /// expand_dem_chunks() leaves behind, allowing round-trip through YAML.
+  std::optional<cudaq::qec::dem_chunks_spec> dem_chunks;
   decoder_custom_args_t decoder_custom_args;
 
   bool operator==(const decoder_config &) const = default;
@@ -122,7 +148,7 @@ struct transport_shape_override {
   /// soname is "libcudaq-realtime-bridge-" + name + ".so", with '_' in the
   /// name mapping to '-' to match the shipped hyphenated sonames (so
   /// gpu_roce loads libcudaq-realtime-bridge-gpu-roce.so).
-  /// Empty = inherit the section/CLI default.
+  /// Empty = inherit the section default.
   std::string provider;
   /// Extra provider arguments appended for this shape's rings.
   std::vector<std::string> args;
@@ -143,15 +169,29 @@ struct transport_shape_override {
 ///       provider: udp          # "gpu_roce" on an HSB rig
 ///       args: [--pinned-rings]
 ///
-/// Resolution per ring: shape override (device_graph rings) > this
-/// section's provider/args > the server's --transport CLI fallback.  The
-/// CLI flag only applies when this section names no provider; a config
-/// that names one plus an explicit --transport is rejected at startup
-/// (the deployment file is the source of truth for the wire).
+/// Resolution per ring: shape override (device_graph rings) > this section's
+/// provider/args. The standalone server permits a CLI fallback only for
+/// non-GPU-RoCE, host-only configurations whose YAML names no provider. A
+/// configuration containing device_graph dispatch or using GPU RoCE must
+/// define its provider and arguments in YAML (the deployment file is the
+/// source of truth for GPU-visible rings).
 struct transport_config {
   std::string provider;
   std::vector<std::string> args;
   transport_shape_override device_graph;
+
+  /// Resolve the provider and ordered arguments for a device-graph ring.
+  /// The shape-specific provider overrides the section provider, while its
+  /// arguments are appended to the section arguments.
+  transport_shape_override resolve_device_graph() const {
+    transport_shape_override resolved;
+    resolved.provider =
+        device_graph.provider.empty() ? provider : device_graph.provider;
+    resolved.args = args;
+    resolved.args.insert(resolved.args.end(), device_graph.args.begin(),
+                         device_graph.args.end());
+    return resolved;
+  }
 
   bool operator==(const transport_config &) const = default;
 };
@@ -159,8 +199,9 @@ struct transport_config {
 class multi_decoder_config {
 public:
   std::vector<decoder_config> decoders;
-  /// Optional server-level transport section (empty provider/args = not
-  /// specified; the server's CLI defaults apply).
+  /// Optional server-level transport section. The standalone server's CLI
+  /// defaults may fill an empty section only for non-GPU-RoCE, host-only
+  /// configurations.
   transport_config transport;
 
   bool operator==(const multi_decoder_config &) const = default;
@@ -174,6 +215,25 @@ public:
   __attribute__((visibility("default"))) static multi_decoder_config
   from_yaml_str(const std::string_view yaml_str);
 };
+
+/// @brief Rewrite a chunk-form configuration into the equivalent flat form,
+/// filling block_size, syndrome_size, H_sparse, O_sparse, D_sparse and
+/// error_rate_vec from `dem_chunks` expanded `num_rounds` times. Everything
+/// downstream of this therefore only has to understand the flat form.
+///
+/// Does nothing to a configuration that is already flat (one whose `H_sparse`
+/// is nonempty, or which carries no `dem_chunks` at all), so it is safe to
+/// call unconditionally. An empty H_sparse with dem_chunks present is still
+/// treated as chunk form.
+///
+/// @return The closed DEM the flat fields were derived from, so a caller that
+///         also wants its per-fault priors does not have to expand a second
+///         time. Empty when the configuration was already flat.
+/// @throws std::runtime_error if `num_rounds` is missing, or if the phases
+///         cannot be expanded to that many rounds.
+__attribute__((visibility("default")))
+std::optional<cudaq::qec::detector_error_model>
+expand_dem_chunks(decoder_config &config);
 
 /// @brief Generate a JSON Schema (draft 2020-12) document describing valid
 /// `multi_decoder_config` YAML files, so third-party tools (check-jsonschema,

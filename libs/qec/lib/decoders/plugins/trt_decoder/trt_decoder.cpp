@@ -474,6 +474,7 @@ public:
 
   decoder_result decode(const std::vector<float_t> &syndrome) override;
 
+  using decoder::decode_batch; // keep the batch_opt_results overload visible
   std::vector<decoder_result>
   decode_batch(const std::vector<std::vector<float_t>> &syndromes) override;
 
