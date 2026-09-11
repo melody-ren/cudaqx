@@ -128,8 +128,7 @@ def build_multi_decoder_config(dem, m2d, num_syndromes_per_round: int,
                 "inner_decoder_name":
                     opts.sw_inner_decoder,
                 "inner_decoder_params":
-                    decoder_args(opts.sw_inner_decoder,
-                                 opts.decoder_params),
+                    decoder_args(opts.sw_inner_decoder, opts.decoder_params),
             }
         else:
             dc.type = opts.decoder_type
